@@ -177,7 +177,10 @@ export class WarshipSelectionController implements Controller {
       if (!this.game.isValidCoord(cell.x, cell.y)) return;
       clickRef = this.game.ref(cell.x, cell.y);
     }
-    if (!this.game.isWater(clickRef)) return;
+    if (!this.game.isWater(clickRef)) {
+      this.onLandClick(clickRef);
+      return;
+    }
 
     if (this.multiSelectedWarships.length > 0) {
       const myPlayer = this.game.myPlayer();
@@ -203,6 +206,44 @@ export class WarshipSelectionController implements Controller {
     nearbyWarships ??= this.findWarshipsNearCell(clickRef);
     if (nearbyWarships.length > 0) {
       this.eventBus.emit(new UnitSelectionEvent(nearbyWarships[0], true));
+    }
+  }
+
+  /**
+   * Fork: tanks. Clicking own land near an own tank selects it; with a tank
+   * selected, clicking own land orders it there (the same move intent as
+   * warships). Clicks on other land are left to the attack flow.
+   */
+  private onLandClick(clickRef: TileRef) {
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer || this.game.owner(clickRef) !== myPlayer) return;
+
+    if (this.selectedUnit?.type() === UnitType.Tank) {
+      if (this.selectedUnit.isActive()) {
+        this.eventBus.emit(
+          new MoveWarshipIntentEvent([this.selectedUnit.id()], clickRef),
+        );
+      }
+      this.eventBus.emit(new UnitSelectionEvent(this.selectedUnit, false));
+      return;
+    }
+
+    const nearest = this.game
+      .units(UnitType.Tank)
+      .filter(
+        (unit) =>
+          unit.isActive() &&
+          unit.owner() === myPlayer &&
+          this.game.manhattanDist(unit.tile(), clickRef) <=
+            WARSHIP_SELECTION_RADIUS,
+      )
+      .sort(
+        (a, b) =>
+          this.game.manhattanDist(a.tile(), clickRef) -
+          this.game.manhattanDist(b.tile(), clickRef),
+      )[0];
+    if (nearest !== undefined) {
+      this.eventBus.emit(new UnitSelectionEvent(nearest, true));
     }
   }
 

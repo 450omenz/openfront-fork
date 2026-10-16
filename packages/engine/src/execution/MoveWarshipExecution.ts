@@ -28,8 +28,19 @@ export class MoveWarshipExecution implements Execution {
     const warshipMap = new Map(
       this.owner.units(UnitType.Warship).map((u) => [u.id(), u]),
     );
+    // Fork: the same order drives tanks, which only move on owned land.
+    const tankMap = new Map(
+      this.owner.units(UnitType.Tank).map((u) => [u.id(), u]),
+    );
     // Deduplicate ids so each warship is only moved once
     for (const unitId of new Set(this.unitIds)) {
+      const tank = tankMap.get(unitId);
+      if (tank !== undefined) {
+        if (tank.isActive() && mg.owner(this.position) === this.owner) {
+          tank.setTargetTile(this.position);
+        }
+        continue;
+      }
       const warship = warshipMap.get(unitId);
       if (!warship) {
         console.warn(`MoveWarshipExecution: warship ${unitId} not found`);

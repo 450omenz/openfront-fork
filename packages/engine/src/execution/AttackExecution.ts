@@ -393,6 +393,14 @@ export class AttackExecution implements Execution {
                 defender.isDisconnected() && this._owner.isOnSameTeam(defender),
             },
       defenderHasDefensePost,
+      attackerHasTankSupport:
+        defender !== null &&
+        this.mg.hasUnitNearby(
+          tile,
+          this.mg.config().tankAuraRange(),
+          UnitType.Tank,
+          this._owner.id(),
+        ),
       falloutRatio: this.mg.hasFallout(tile)
         ? this.mg.numTilesWithFallout() / this.mg.numLandTiles()
         : null,

@@ -1618,6 +1618,8 @@ export class PlayerImpl implements Player {
         return this.tradeShipSpawn(targetTile);
       case UnitType.Train:
         return this.landBasedUnitSpawn(targetTile);
+      case UnitType.Tank:
+        return this.tankSpawn(targetTile);
       case UnitType.MissileSilo:
       case UnitType.DefensePost:
       case UnitType.SAMLauncher:
@@ -1721,6 +1723,24 @@ export class PlayerImpl implements Player {
     );
 
     return bestPort?.tile() ?? false;
+  }
+
+  // Tanks roll out of the owner's nearest finished factory, toward a tile of
+  // the owner's own land.
+  tankSpawn(tile: TileRef): TileRef | false {
+    if (this.mg.owner(tile) !== this || !this.mg.isLand(tile)) {
+      return false;
+    }
+    const factory = findClosestBy(
+      this.units(UnitType.Factory),
+      (f) => this.mg.manhattanDist(f.tile(), tile),
+      (f) =>
+        f.isActive() &&
+        !f.isUnderConstruction() &&
+        this.mg.manhattanDist(f.tile(), tile) <=
+          this.mg.config().tankFactoryRange(),
+    );
+    return factory?.tile() ?? false;
   }
 
   landBasedUnitSpawn(tile: TileRef): TileRef | false {

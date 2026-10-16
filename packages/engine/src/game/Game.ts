@@ -111,6 +111,11 @@ export interface UnitParamsMap {
   [UnitType.SAMLauncher]: Record<string, never>;
 
   [UnitType.City]: Record<string, never>;
+
+  [UnitType.Tank]: {
+    // Where the tank drives after rolling out of its factory.
+    targetTile?: TileRef;
+  };
 }
 
 // Type helper to get params type for a specific unit type

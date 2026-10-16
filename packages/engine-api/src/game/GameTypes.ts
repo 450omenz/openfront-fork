@@ -207,6 +207,8 @@ export enum UnitType {
   MIRVWarhead = "MIRV Warhead",
   Train = "Train",
   Factory = "Factory",
+  // Fork. Appended: UnitType is positional on the wire.
+  Tank = "Tank",
 }
 
 export enum TrainType {
@@ -227,6 +229,7 @@ export const BuildableAttacks = unitTypeGroup([
   UnitType.HydrogenBomb,
   UnitType.MIRV,
   UnitType.Warship,
+  UnitType.Tank,
 ] as const);
 
 export const Structures = unitTypeGroup([

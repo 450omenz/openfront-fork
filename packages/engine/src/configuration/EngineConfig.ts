@@ -36,6 +36,8 @@ export interface AttackLogicInput {
   } | null;
   /** A defense post owned by the defender is in range of the tile. */
   defenderHasDefensePost: boolean;
+  /** A tank owned by the attacker is in aura range of the tile (fork). */
+  attackerHasTankSupport?: boolean;
   /** Fraction of land tiles with fallout, or null if the tile has no fallout. */
   falloutRatio: number | null;
   /** Tiles on the attack front this tick (plus jitter); fixed for the tick. */
@@ -144,6 +146,30 @@ export class EngineConfig extends Config {
 
   defensePostSpeedBonus(): number {
     return 3;
+  }
+
+  // --- Tank (fork) ---
+  // Divides attacker loss and tile cost: 1.35 = "+35% attack power".
+  tankAuraAttackBonus(): number {
+    return 1.35;
+  }
+  tankShellRange(): number {
+    return 8;
+  }
+  tankShellAttackRate(): number {
+    return 30;
+  }
+  // Ticks per tile moved.
+  tankMoveInterval(): number {
+    return 2;
+  }
+  // Longest single move order, in tiles (bounds the land A* search box).
+  tankMaxMoveDistance(): number {
+    return 150;
+  }
+  // Percent of worker gold income each tank costs in upkeep.
+  tankUpkeepPercent(): number {
+    return 2;
   }
 
   playerTeams(): TeamCountConfig {
@@ -343,6 +369,12 @@ export class EngineConfig extends Config {
           (numUnits: number) => Math.min(1_000_000, (numUnits + 1) * 250_000),
           UnitType.Warship,
         );
+      case UnitType.Tank:
+        return this.costWrapper(
+          (numUnits: number) =>
+            Math.min(1_200_000, 300_000 + numUnits * 150_000),
+          UnitType.Tank,
+        );
       case UnitType.Port:
         return this.costWrapper(
           (numUnits: number) => Math.min(1_000_000, pow2(numUnits) * 125_000),
@@ -524,7 +556,11 @@ export class EngineConfig extends Config {
     const { attackTroops, attacker, defender } = input;
     let { mag, tileCost } = terrainAttackBase(input.terrain);
 
-    if (defender !== null && input.defenderHasDefensePost) {
+    if (input.attackerHasTankSupport) {
+      // Spearhead: cheaper, faster, and defense posts don't count.
+      mag /= this.tankAuraAttackBonus();
+      tileCost /= this.tankAuraAttackBonus();
+    } else if (defender !== null && input.defenderHasDefensePost) {
       mag *= this.defensePostDefenseBonus();
       tileCost *= this.defensePostSpeedBonus();
     }
@@ -673,7 +709,12 @@ export class EngineConfig extends Config {
     } else {
       baseRate = 100n;
     }
-    return BigInt(Math.floor(Number(baseRate) * multiplier));
+    // Tank upkeep (fork): each tank shaves a percent off worker income.
+    const upkeep = Math.max(
+      0,
+      100 - player.units(UnitType.Tank).length * this.tankUpkeepPercent(),
+    );
+    return BigInt(Math.floor((Number(baseRate) * multiplier * upkeep) / 100));
   }
 
   nukeSpeed(unitType: UnitType): number {

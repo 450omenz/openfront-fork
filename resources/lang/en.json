@@ -197,6 +197,7 @@
       "missile_silo": "Used to launch nukes",
       "port": "Sends trade ships to generate gold",
       "sam_launcher": "Defends against incoming nukes",
+      "tank": "Armored spearhead from your nearest Factory. Your attacks near it hit harder and ignore Defense Posts. Shells enemy tanks; destroyed if its ground is taken.",
       "warship": "Captures trade ships, destroys ships and boats"
     },
     "not_enough_money": "Not enough money",
@@ -2506,6 +2507,7 @@
     "missile_silo": "Missile Silo",
     "port": "Port",
     "sam_launcher": "SAM Launcher",
+    "tank": "Tank",
     "warship": "Warship"
   },
   "update_available": {
@@ -2577,6 +2579,8 @@
     "build_port_desc": "Build a Port under your cursor.",
     "build_sam_launcher": "Build SAM Launcher",
     "build_sam_launcher_desc": "Build a SAM Launcher under your cursor.",
+    "build_tank": "Build Tank",
+    "build_tank_desc": "Build a Tank driving to the tile under your cursor.",
     "build_warship": "Build Warship",
     "build_warship_desc": "Build a Warship under your cursor.",
     "camera_movement": "Camera Movement",

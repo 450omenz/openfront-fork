@@ -176,6 +176,17 @@ export class Config {
     return 30;
   }
 
+  // --- Tank (fork) ---
+  // Attacks conquering a tile within this range of the attacker's tank get
+  // the spearhead bonus and ignore defense posts.
+  tankAuraRange(): number {
+    return 12;
+  }
+  // A factory within this distance of the clicked tile builds the tank.
+  tankFactoryRange(): number {
+    return 40;
+  }
+
   isUnitDisabled(unitType: UnitType): boolean {
     return this._gameConfig.disabledUnits?.includes(unitType) ?? false;
   }
@@ -213,6 +224,9 @@ export class Config {
     switch (type) {
       case UnitType.Warship:
         info = { maxHealth: 1000 };
+        break;
+      case UnitType.Tank:
+        info = { maxHealth: 700 };
         break;
       case UnitType.Shell:
         info = { damage: 250 };
