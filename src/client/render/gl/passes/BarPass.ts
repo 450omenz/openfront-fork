@@ -2,7 +2,7 @@
  * BarPass — instanced health/progress bars and warship veterancy pips.
  *
  * Three draw calls per frame (all share one program + instance buffer):
- *   1. Health bars (11x3 tiles, above warships)
+ *   1. Health bars (11x3 tiles, above warships and tanks)
  *   2. Progress bars (14x3 tiles, below structures — construction + missile readiness)
  *   3. Veterancy pips (solid gold rank bars stacked at a warship's bottom-right)
  *
@@ -64,7 +64,6 @@ export class BarPass {
   private veterancyCount = 0;
 
   private mapW: number;
-  private warshipMaxHealth: number;
   private veterancyHealthBonus: number;
 
   constructor(
@@ -76,7 +75,6 @@ export class BarPass {
     this.gl = gl;
     this.settings = settings;
     this.mapW = header.mapWidth;
-    this.warshipMaxHealth = config.unitInfo(UnitType.Warship).maxHealth ?? 0;
     this.veterancyHealthBonus = config.warshipVeterancyHealthBonus();
 
     // --- Shader program ---
@@ -139,15 +137,19 @@ export class BarPass {
     this.progressCount = 0;
     this.veterancyCount = 0;
 
-    // --- Health bars + veterancy pips (warships) ---
-    // Only warships carry health among mobile units, so this loop is effectively
-    // warship-only.
+    // --- Health bars + veterancy pips ---
+    // Mobile units with health: warships and (fork) tanks. Each bar is scaled
+    // by its own type's max health (unitInfo is cached by Config).
     for (const unit of mobileUnits.values()) {
       if (unit.health === null || unit.health <= 0) continue;
+      const baseMaxHealth = this.config.unitInfo(
+        unit.unitType as UnitType,
+      ).maxHealth;
+      if (baseMaxHealth === undefined) continue;
       // Veteran warships have a higher effective max health, so a full veteran
       // ship reads as full. Shared with the engine's UnitImpl.maxHealth().
       const maxHealth = maxHealthWithVeterancy(
-        this.warshipMaxHealth,
+        baseMaxHealth,
         unit.veterancy,
         this.veterancyHealthBonus,
       );
