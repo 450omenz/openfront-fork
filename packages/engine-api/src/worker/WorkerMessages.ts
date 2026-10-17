@@ -56,6 +56,11 @@ export interface InitMessage extends BaseWorkerMessage {
   map: MapFiles;
   /** Resume from this game snapshot instead of starting a new game. */
   snapshot?: Uint8Array;
+  /**
+   * Fork: the Rust/WASM kernels (resources/wasm/engine_kernels.wasm). Without
+   * them the engine runs its TypeScript paths, with identical results.
+   */
+  kernelWasm?: Uint8Array<ArrayBuffer>;
 }
 
 /**

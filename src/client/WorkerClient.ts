@@ -1,4 +1,5 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
+import { assetUrl } from "@openfront/shared/AssetUrls";
 import {
   BuildableUnit,
   Cell,
@@ -92,6 +93,7 @@ export class WorkerClient {
     const { gameMap, gameMapSize } = this.gameStartInfo.config;
     const created = createGameWorker();
     let map: MapFiles;
+    const kernelWasm = loadKernelWasm();
     try {
       map = await loadMapFiles(terrainMapFileLoader, gameMap, gameMapSize);
     } catch (err) {
@@ -103,6 +105,7 @@ export class WorkerClient {
       throw err;
     }
     const worker = await created;
+    const wasm = await kernelWasm;
     this.worker = worker;
     worker.addEventListener("message", this.handleWorkerMessage.bind(this));
 
@@ -127,8 +130,12 @@ export class WorkerClient {
         clientID: this.clientID,
         map,
         snapshot: this.snapshotToRestore,
+        kernelWasm: wasm,
       };
-      worker.postMessage(init, mapFilesTransfer(map));
+      worker.postMessage(init, [
+        ...mapFilesTransfer(map),
+        ...(wasm !== undefined ? [wasm.buffer] : []),
+      ]);
 
       setTimeout(() => {
         if (!this.isInitialized) {
@@ -427,5 +434,24 @@ export class WorkerClient {
     this.worker?.terminate();
     this.messageHandlers.clear();
     this.gameUpdateCallback = undefined;
+  }
+}
+
+/**
+ * Fork: the engine's Rust/WASM kernels, or undefined to run the TypeScript
+ * paths (same results). To turn them off, set localStorage "fork:nowasm" to
+ * "1" (the app rewrites the page URL, so a query flag can't be relied on).
+ */
+async function loadKernelWasm(): Promise<Uint8Array<ArrayBuffer> | undefined> {
+  try {
+    if (window.localStorage.getItem("fork:nowasm") === "1") {
+      return undefined;
+    }
+    const res = await fetch(assetUrl("wasm/engine_kernels.wasm"));
+    if (!res.ok) return undefined;
+    return new Uint8Array(await res.arrayBuffer());
+  } catch (err) {
+    console.warn("WASM kernels unavailable, using TypeScript:", err);
+    return undefined;
   }
 }

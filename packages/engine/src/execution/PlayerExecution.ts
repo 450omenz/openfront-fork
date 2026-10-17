@@ -1,4 +1,5 @@
 import { trainTick } from "../game/Military";
+import { kernelsFor } from "../wasm/Kernels";
 import { GameMap, TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   Cell,
@@ -1285,6 +1286,11 @@ export class PlayerExecution implements Execution {
     const borderTiles = this.player.borderTiles();
     if (borderTiles.size === 0)
       return { clusters: [], boxes: new Int32Array(0) };
+
+    // Fork: the Rust/WASM twin of the fill below, when installed. Same
+    // clusters, tiles in the same order, same boxes (tests/WasmKernels.test).
+    const kernels = kernelsFor(this.mg, this.mg.width(), this.mg.height());
+    if (kernels !== null) return kernels.borderClusters(borderTiles);
 
     const state = this.traversalState();
     const visited = state.visited;

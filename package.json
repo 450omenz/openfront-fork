@@ -10,6 +10,7 @@
   "scripts": {
     "build-dev": "concurrently \"tsc --noEmit\" \"vite build --mode development\"",
     "build-prod": "concurrently --kill-others-on-fail \"tsc --noEmit\" \"vite build\" && tsx scripts/buildAssetHashes.ts",
+    "build:wasm": "cargo build --release --target wasm32-unknown-unknown --manifest-path packages/engine-wasm/Cargo.toml && mkdir -p resources/wasm && cp packages/engine-wasm/target/wasm32-unknown-unknown/release/engine_kernels.wasm resources/wasm/engine_kernels.wasm",
     "typecheck": "tsc --noEmit && tsc --noEmit -p packages/engine-api && tsc --noEmit -p packages/engine-lib && tsc --noEmit -p packages/engine && tsc --noEmit -p packages/engine/src/worker && tsc --noEmit -p packages/shared && tsc --noEmit -p packages/zbin",
     "start:client": "vite",
     "start:server": "tsx src/server/Server.ts",

@@ -199,3 +199,56 @@ To add an overlay mode:
 5. Add `view_mode.<value>` to `en.json`.
 
 `TileOverlayPass` draws the overlay between territory and borders.
+
+## Adding a WASM kernel (Rust)
+
+Hot, self-contained engine loops can have a Rust twin compiled to
+WebAssembly. The first one is the border-cluster flood fill in
+`PlayerExecution.calculateClusters`. In a real game it runs 2.9× faster than
+the TypeScript version, including the cost of copying data in and out.
+
+**How it fits together:**
+
+- **Rust crate:** `packages/engine-wasm/` (`src/lib.rs`). It has no
+  dependencies and no wasm-bindgen; kernels are plain `extern "C"` functions
+  over pointers into linear memory, and `kernel_alloc` hands out buffers.
+- **Build:** `npm run build:wasm` writes `resources/wasm/engine_kernels.wasm`.
+  The built file is committed, so contributors without Rust and the Docker
+  build don't need a toolchain. Rebuild it and commit whenever `lib.rs`
+  changes. One-time setup: `rustup target add wasm32-unknown-unknown`.
+- **Loader:** `packages/engine/src/wasm/Kernels.ts`.
+  - The host installs the module's bytes with `installKernelWasm()`. In the
+    browser, `WorkerClient` fetches the file and passes the bytes in the
+    worker's init message.
+  - Each game gets its own instance through `kernelsFor(game, w, h)`, which
+    returns null when no kernels are installed.
+  - Make fresh typed-array views of `memory.buffer` on every call: growing
+    memory detaches the old ones.
+- **Turning it off:** set localStorage `fork:nowasm` to `1`, or call
+  `setKernelsDisabled(true)` in tests and benchmarks. Without the bytes,
+  every caller runs its TypeScript path.
+
+**Rules, so clients with and without WASM stay in sync:**
+
+- Integer math only.
+- Visit and output in exactly the order the TypeScript does: same neighbor
+  order, same stack discipline.
+- Keep the TypeScript path as the fallback, behind a single
+  `kernelsFor(...)` check at the call site.
+
+**To add a kernel:**
+
+1. Write it in `lib.rs` as a safe `*_impl` function plus a thin
+   `#[no_mangle] extern "C"` wrapper. Add a `cargo test` for it.
+2. Declare it in `KernelExports` and wrap it in a `GameKernels` method.
+3. Call it from the hot spot when `kernelsFor()` isn't null.
+4. Add parity checks to `tests/WasmKernels.test.ts`: the kernel against the
+   TypeScript path on random input, and a whole game run with and without
+   WASM producing the same hashes.
+5. Measure with `npm run perf:game -- --wasm` against a run without the flag.
+   The final hash must match. Keep the kernel only if it is clearly faster
+   (at least 1.5× including the copies).
+
+Profile before porting anything. Most engine time sits in code that touches
+game objects, not flat arrays, and Rust can't help there; see the per-tick
+numbers in the commit history.

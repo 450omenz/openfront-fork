@@ -40,3 +40,22 @@ interface TextDecoder {
 declare const TextDecoder: {
   new (label?: string, options?: { fatal?: boolean }): TextDecoder;
 };
+
+/**
+ * Fork: WebAssembly, for the optional Rust kernels
+ * (packages/engine/src/wasm/Kernels.ts). Synchronous compile and instantiate
+ * only: the host hands the engine the module's bytes, the engine never
+ * fetches.
+ */
+declare namespace WebAssembly {
+  class Module {
+    constructor(bytes: Uint8Array);
+  }
+  class Instance {
+    constructor(module: Module, imports?: Record<string, unknown>);
+    readonly exports: Record<string, unknown>;
+  }
+  class Memory {
+    readonly buffer: ArrayBuffer;
+  }
+}

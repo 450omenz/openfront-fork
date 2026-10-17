@@ -2,6 +2,7 @@ import {
   ErrorUpdate,
   GameUpdateViewData,
 } from "@openfront/engine-api/game/GameUpdates";
+import { installKernelWasm } from "../wasm/Kernels";
 import {
   AttackClusteredPositionsResultMessage,
   HumanStatsResultMessage,
@@ -152,6 +153,18 @@ function sendMessage(message: WorkerMessage) {
   out.postMessage(message);
 }
 
+// Fork: compiles the Rust/WASM kernels sent with init; on any failure the
+// engine keeps its TypeScript paths (same results, a little slower).
+function installKernels(bytes: Uint8Array<ArrayBuffer> | undefined): void {
+  try {
+    installKernelWasm(bytes ?? null);
+    if (bytes !== undefined) console.log("[worker] WASM kernels: on");
+  } catch (err) {
+    installKernelWasm(null);
+    console.warn("[worker] WASM kernels failed, using TypeScript:", err);
+  }
+}
+
 async function onMessage(e: MessageEvent<MainThreadMessage>) {
   const message = e.data;
 
@@ -162,6 +175,7 @@ async function onMessage(e: MessageEvent<MainThreadMessage>) {
       break;
     case "init":
       try {
+        installKernels(message.kernelWasm);
         gameRunner = (
           message.snapshot !== undefined
             ? createGameRunnerFromSnapshot(

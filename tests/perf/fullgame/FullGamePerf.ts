@@ -25,7 +25,10 @@
  *                        [--no-cpu-profile] [--no-exec-profile]
  *                        [--no-gc-profile] [--no-alloc-profile]
  *                        [--footprint] [--snapshot-at 0,2000,12000]
+ *                        [--wasm]
  *
+ * --wasm installs the Rust/WASM kernels (resources/wasm, `npm run build:wasm`);
+ * the final hash must match a run without it.
  * --footprint records the live heap (used heap after a forced full GC) at
  * every --window boundary; it requires NODE_OPTIONS=--expose-gc.
  * --snapshot-at writes .heapsnapshot files at the given game-phase ticks
@@ -52,6 +55,7 @@ import { Executor } from "@openfront/engine/execution/ExecutionManager";
 import { createGame } from "@openfront/engine/game/GameImpl";
 import { createNationsForGame } from "@openfront/engine/game/NationCreation";
 import { GameRunner } from "@openfront/engine/GameRunner";
+import { installKernelWasm } from "@openfront/engine/wasm/Kernels";
 import { loadMapFiles } from "@openfront/shared/GameMapLoader";
 import fs from "fs";
 import v8 from "node:v8";
@@ -98,6 +102,7 @@ interface Options {
   footprint: boolean;
   snapshotAt: number[];
   waterNukes: boolean;
+  wasm: boolean;
 }
 
 function resolveMap(name: string): GameMapType {
@@ -129,6 +134,7 @@ function parseArgs(argv: string[]): Options {
     footprint: false,
     snapshotAt: [],
     waterNukes: false,
+    wasm: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -185,6 +191,9 @@ function parseArgs(argv: string[]): Options {
       case "--water-nukes":
         opts.waterNukes = true;
         break;
+      case "--wasm":
+        opts.wasm = true;
+        break;
       default:
         throw new Error(`unknown argument: ${arg}`);
     }
@@ -218,6 +227,16 @@ function table(headers: string[], rows: string[][]): string {
 
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.wasm) {
+    installKernelWasm(
+      new Uint8Array(
+        fs.readFileSync(
+          path.join(PROJECT_ROOT, "resources/wasm/engine_kernels.wasm"),
+        ),
+      ),
+    );
+    console.log("WASM kernels: on");
+  }
   console.debug = () => {}; // silence per-tick debug logging
 
   const gameConfig: GameConfig = {
