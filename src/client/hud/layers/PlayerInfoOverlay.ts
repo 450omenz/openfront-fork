@@ -731,6 +731,7 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
             ${this.renderPlayerNameIcons(playerIcons)} ${betrayalHtml ?? ""}
             ${allianceHtml ?? ""}
           </div>
+          ${this.renderCoalition(player)}
           ${this.renderPopulationDensity(player)}
           <div class="flex gap-0.5 lg:gap-1 items-center mt-0.5">
             ${this.displayUnitCount(player, UnitType.City, cityIcon)}
@@ -754,6 +755,27 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
           : ""}
       </div>
     `;
+  }
+
+  // Fork: the coalition this player belongs to (and whether they lead it).
+  private renderCoalition(player: PlayerView) {
+    if (typeof player.coalition !== "function") return "";
+    const c = player.coalition();
+    if (c === null) return "";
+    const me = this.game.myPlayer();
+    const mine =
+      typeof me?.coalition === "function" && me.coalition()?.id === c.id;
+    const leads = c.leaderID === player.smallID();
+    return html`<div
+      class="text-xs font-mono mt-0.5 ${mine
+        ? "text-teal-300"
+        : "text-sky-300"}"
+    >
+      ${translateText(
+        leads ? "coalition.overlay_leader" : "coalition.overlay_member",
+        { name: c.name, count: c.memberIDs.length },
+      )}
+    </div>`;
   }
 
   // Fork: how crowded the hovered tile is compared with the player's

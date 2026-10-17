@@ -574,6 +574,12 @@ export class GameView implements GameLike {
         (this._myPlayer?.hasTransitiveTarget(sid) ?? false),
       doomsdayClockWarnTicks:
         this._config.doomsdayClockConfig().warnSeconds * 10,
+      // Fork: coalition-mate icon.
+      isCoalitionMate: (sid) => {
+        const me = this._myPlayer;
+        if (me === null) return false;
+        return this.coalitionOf(me.smallID())?.memberIDs.includes(sid) ?? false;
+      },
     });
     // Relations + clusters depend only on allies/embargoes/teams, which
     // change rarely (teams only when a player is added) — recompute only

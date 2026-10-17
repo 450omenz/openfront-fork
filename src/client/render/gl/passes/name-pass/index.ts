@@ -414,6 +414,7 @@ export class NamePass {
             traitorRemainingTicks: 0,
             allianceFraction: 0,
             allianceRemainingTicks: 0,
+            coalition: false,
           };
           this.slots.set(p.id, slot);
           this.resolveSlotFlag(slot);
@@ -555,6 +556,7 @@ export class NamePass {
       const traitorRemainingTicks = sd?.traitorRemainingTicks ?? 0;
       const allianceFraction = sd?.allianceFraction ?? 0;
       const allianceRemainingTicks = sd?.allianceRemainingTicks ?? 0;
+      const coalition = sd?.coalition ?? false;
 
       if (
         crown !== slot.crown ||
@@ -572,7 +574,8 @@ export class NamePass {
         nukeTargetsMe !== slot.nukeTargetsMe ||
         traitorRemainingTicks !== slot.traitorRemainingTicks ||
         allianceFraction !== slot.allianceFraction ||
-        allianceRemainingTicks !== slot.allianceRemainingTicks
+        allianceRemainingTicks !== slot.allianceRemainingTicks ||
+        coalition !== slot.coalition
       ) {
         slot.crown = crown;
         slot.traitor = traitor;
@@ -590,6 +593,7 @@ export class NamePass {
         slot.traitorRemainingTicks = traitorRemainingTicks;
         slot.allianceFraction = allianceFraction;
         slot.allianceRemainingTicks = allianceRemainingTicks;
+        slot.coalition = coalition;
         dirty = true;
       }
 
@@ -701,7 +705,7 @@ export class NamePass {
     d[off + 30] = slot.allianceFraction;
     d[off + 31] = slot.allianceRemainingTicks;
 
-    // Column 8: crownLayerIdx (crown cosmetic), verified badge, statusIconCount, free
+    // Column 8: crownLayerIdx (crown cosmetic), verified badge, statusIconCount, coalition
     d[off + 32] = slot.crownLayerIdx;
     d[off + 33] = slot.static.verified === true ? 1.0 : 0.0;
     // Count of active status-row icons so shaders don't recompute it independently.
@@ -715,8 +719,9 @@ export class NamePass {
       slot.embargo,
       slot.nukeActive,
       slot.inDoomsdayClock || slot.doomsdayClockDraining,
+      slot.coalition,
     ].filter(Boolean).length;
-    d[off + 35] = 0.0;
+    d[off + 35] = slot.coalition ? 1.0 : 0.0;
 
     this.playerDataDirty = true;
   }
@@ -774,7 +779,8 @@ export class NamePass {
         slot.target ||
         slot.embargo ||
         slot.nukeActive ||
-        slot.inDoomsdayClock;
+        slot.inDoomsdayClock ||
+        slot.coalition;
       if (slot.emojiAtlasIdx >= 0) {
         top = wy - lineH * ns.emojiRowOffset;
       } else if (hasStatus) {

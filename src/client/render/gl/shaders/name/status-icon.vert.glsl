@@ -47,8 +47,9 @@ out float vHoverAlpha;
 
 // Status flag float array — indexed by icon slot.
 // Slot mapping: 0=crown, 1=traitor, 2=disconnected, 3=alliance,
-//               4=allianceReq, 5=target, 6=embargo, 7=nukeActive, 8=doomsdayClock
-float statusFlag[9];
+//               4=allianceReq, 5=target, 6=embargo, 7=nukeActive, 8=doomsdayClock,
+//               9=coalition (fork)
+float statusFlag[10];
 
 // Read status flags from pd4.w/pd5/pd6 into the statusFlag array.
 void readStatusFlags(int playerIdx) {
@@ -64,6 +65,7 @@ void readStatusFlags(int playerIdx) {
   statusFlag[6] = pd6.z; // embargo
   statusFlag[7] = pd6.w; // nukeActive
   statusFlag[8] = pd4.w; // doomsdayClock
+  statusFlag[9] = texelFetch(uPlayerData, ivec2(8, playerIdx), 0).w; // coalition
 }
 
 // Count active icons with index < pos.
@@ -89,11 +91,11 @@ vec4 cellUV(int idx) {
 }
 
 void main() {
-  // Decode instance ID → playerIdx + iconSlot (0..8 status row, 9 = verified
+  // Decode instance ID → playerIdx + iconSlot (0..9 status row, 10 = verified
   // badge to the right of the name)
-  int playerIdx = gl_InstanceID / 10;
-  int iconSlot  = gl_InstanceID - playerIdx * 10;
-  bool isVerifiedSlot = (iconSlot == 9);
+  int playerIdx = gl_InstanceID / 11;
+  int iconSlot  = gl_InstanceID - playerIdx * 11;
+  bool isVerifiedSlot = (iconSlot == 10);
 
   // Read player data
   vec4 pd0 = texelFetch(uPlayerData, ivec2(0, playerIdx), 0); // srcX, srcY, srcScale, startTime
@@ -126,7 +128,7 @@ void main() {
   // Read status flags into array
   readStatusFlags(playerIdx);
 
-  // Early out: this icon slot is inactive. The verified badge (slot 9) is
+  // Early out: this icon slot is inactive. The verified badge (slot 10) is
   // driven by pd8.y, not the status-row flag array.
   bool slotActive = isVerifiedSlot ? (pd8.y > 0.5) : (statusFlag[iconSlot] > 0.5);
   if (!slotActive) {
@@ -223,12 +225,15 @@ void main() {
   if (iconSlot == 8) {
     atlasIdx = 10; // doomsday-clock skull
   }
+  if (iconSlot == 9) {
+    atlasIdx = 12; // coalition (fork)
+  }
   if (isVerifiedSlot) {
     atlasIdx = 11; // blue verified check
   }
 
   // Only the alliance icon (slot 3) gets the dark outline.
-  vOutline = (iconSlot == 3) ? 1.0 : 0.0;
+  vOutline = (iconSlot == 3 || iconSlot == 9) ? 1.0 : 0.0;
 
   // Fade the status row along with the rest of the name plate when the cursor
   // is over any part of it. Hit test runs on the CPU (NamePass).

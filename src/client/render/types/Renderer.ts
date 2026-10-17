@@ -227,6 +227,8 @@ export interface PlayerStatusData {
   traitorRemainingTicks: number;
   allianceFraction: number;
   allianceRemainingTicks: number;
+  /** Fork: in the local player's coalition. */
+  coalition?: boolean;
 }
 
 /** Ghost structure preview data for build-mode visualization. */

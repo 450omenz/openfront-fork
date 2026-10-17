@@ -50,16 +50,17 @@ void main() {
 
       if (iconUV.x >= 0.0 && iconUV.x <= 1.0 && iconUV.y >= 0.0 && iconUV.y <= 1.0) {
         // Handshake Icon UV in status-atlas.png (col 0, row 1, cell 256x256, 16px pad)
-        // mix(16/768, 240/768, iconUV.x) and mix(272/1024, 496/1024, iconUV.y)
+        // mix(16/768, 240/768, iconUV.x) and mix(272/1280, 496/1280, iconUV.y)
+        // (the atlas is 1280 tall since the fork's coalition row)
         vec2 atlasUV = vec2(
           mix(0.0208333, 0.3125, iconUV.x),
-          mix(0.265625, 0.484375, iconUV.y)
+          mix(0.2125, 0.3875, iconUV.y)
         );
         iconTexel = texture(uStatusAtlas, atlasUV);
 
         // 8-ring dark outline dilation (matching status-icon.frag.glsl)
         float uStatusOutlinePx = 4.0; // 4px outline radius
-        vec2 uStatusTexel = vec2(1.0 / 768.0, 1.0 / 1024.0);
+        vec2 uStatusTexel = vec2(1.0 / 768.0, 1.0 / 1280.0);
         vec2 sampleStep = uStatusTexel * uStatusOutlinePx;
         float ring = 0.0;
         for (int i = 0; i < 8; i++) {

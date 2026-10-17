@@ -15,6 +15,7 @@ const nukeRedIcon = assetUrl("images/NukeIconRed.svg");
 const nukeWhiteIcon = assetUrl("images/NukeIconWhite.svg");
 const targetIcon = assetUrl("images/TargetIcon.svg");
 const doomsdayClockIcon = assetUrl("images/DoomsdayClockSkull.svg");
+const coalitionIcon = assetUrl("images/GuildIconWhite.svg");
 
 const DOOMSDAY_CLOCK_ICON_ID = "doomsday-clock" as const;
 const CROWN_ICON_ID = "crown" as const;
@@ -24,6 +25,7 @@ const TARGET_ICON_ID = "target" as const;
 const EMOJI_ICON_ID = "emoji" as const;
 const EMBARGO_ICON_ID = "embargo" as const;
 const NUKE_ICON_ID = "nuke" as const;
+const COALITION_ICON_ID = "coalition" as const;
 
 export const IMAGE_ICON_KIND = "image" as const;
 export const EMOJI_ICON_KIND = "emoji" as const;
@@ -104,6 +106,19 @@ export function getPlayerIcons(
       id: ALLIANCE_REQUEST_ICON_ID,
       kind: IMAGE_ICON_KIND,
       src: allianceRequestIcon,
+    });
+  }
+
+  // Fork: in my coalition
+  if (
+    myPlayer !== null &&
+    typeof myPlayer.isCoalitionMember === "function" &&
+    myPlayer.isCoalitionMember(player)
+  ) {
+    icons.push({
+      id: COALITION_ICON_ID,
+      kind: IMAGE_ICON_KIND,
+      src: coalitionIcon,
     });
   }
 

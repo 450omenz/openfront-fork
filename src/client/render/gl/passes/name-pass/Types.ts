@@ -86,6 +86,8 @@ export interface PlayerSlot {
   traitorRemainingTicks: number;
   allianceFraction: number;
   allianceRemainingTicks: number;
+  /** Fork: in the local player's coalition (status icon slot 9). */
+  coalition: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 /**
  * StatusIconProgram — instanced status icons above player names.
  *
- * Renders up to 10 icons per player: 9 status-row icons above the name
+ * Renders up to 11 icons per player: 10 status-row icons above the name
  * (crown, traitor, disconnected, alliance, alliance request, target, embargo,
- * nuke, doomsday-clock skull) plus the verified badge to the right of the
+ * nuke, doomsday-clock skull, coalition) plus the verified badge to the right of the
  * name. Each instance reads individual float flags to decide whether to draw.
  *
  * Owns: shader program, uniform locations, status atlas texture.
@@ -21,7 +21,7 @@ import type { ParsedAtlas } from "./Types";
 
 const statusAtlasUrl = assetUrl("atlases/status-atlas.png");
 
-const MAX_STATUS_ICONS = 10;
+const MAX_STATUS_ICONS = 11; // must match status-icon.vert.glsl
 
 export class StatusIconProgram {
   private gl: WebGL2RenderingContext;

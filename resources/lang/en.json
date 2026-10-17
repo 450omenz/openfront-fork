@@ -628,6 +628,8 @@
     "none": "You're not in a coalition.",
     "order": "Attack order: {target} ({seconds}s)",
     "others": "Coalitions",
+    "overlay_leader": "Leads {name} ({count})",
+    "overlay_member": "Member of {name} ({count})",
     "sanction": "Coalition sanction",
     "sanction_desc": "Ban all trade between this player and every coalition member",
     "sanctions": "Sanctioned",

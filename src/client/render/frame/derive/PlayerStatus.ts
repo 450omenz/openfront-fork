@@ -43,6 +43,8 @@ export interface ComputePlayerStatusOptions {
    * side as draining.
    */
   doomsdayClockWarnTicks?: number;
+  /** Fork: whether `sid` is in the local player's coalition. */
+  isCoalitionMate?: (sid: number) => boolean;
 }
 
 /**
@@ -134,11 +136,13 @@ export function computePlayerStatus(
     let allianceReq = false;
     let allianceFraction = 0;
     let allianceRemainingTicks = 0;
+    let coalition = false;
 
     // Flags which are only meaningful when there's a local player,
     // and we're not looking at the local player itself.
     if (localPlayer !== undefined && sid !== localPlayerSmallID) {
       alliance = localPlayer.allies.includes(sid);
+      coalition = opts.isCoalitionMate?.(sid) ?? false;
       allianceReq = ps.outgoingAllianceRequests.includes(localPlayerID);
       target = opts.isTransitiveTarget
         ? opts.isTransitiveTarget(sid)
@@ -183,7 +187,8 @@ export function computePlayerStatus(
       allianceReq ||
       target ||
       embargo ||
-      nukeTargetsMe
+      nukeTargetsMe ||
+      coalition
     ) {
       result.set(sid, {
         crown,
@@ -202,6 +207,7 @@ export function computePlayerStatus(
         traitorRemainingTicks,
         allianceFraction,
         allianceRemainingTicks,
+        coalition,
       });
     }
   }
