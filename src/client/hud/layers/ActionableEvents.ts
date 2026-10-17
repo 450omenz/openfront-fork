@@ -5,6 +5,7 @@ import {
   AllianceRequestUpdate,
   BrokeAllianceUpdate,
   GameUpdateType,
+  CoalitionInviteUpdate,
 } from "@openfront/engine-api/game/GameUpdates";
 import { EventBus } from "@openfront/shared/EventBus";
 import { html, LitElement } from "lit";
@@ -16,6 +17,7 @@ import {
   SendAllianceExtensionIntentEvent,
   SendAllianceRejectIntentEvent,
   SendAllianceRequestIntentEvent,
+  SendCoalitionIntentEvent,
 } from "../../Transport";
 import { UIState } from "../../UIState";
 import { getMessageTypeClasses, translateText } from "../../Utils";
@@ -61,6 +63,7 @@ export class ActionableEvents extends LitElement implements Controller {
       GameUpdateType.AllianceExtension,
       this.onAllianceExtensionEvent.bind(this),
     ],
+    [GameUpdateType.CoalitionInvite, this.onCoalitionInviteEvent.bind(this)],
   ] as const;
 
   createRenderRoot() {
@@ -258,6 +261,55 @@ export class ActionableEvents extends LitElement implements Controller {
       duration: this.game.config().allianceRequestDuration(),
       focusID: update.requestorID,
       requestorID: update.requestorID,
+    });
+  }
+
+  // Fork: a coalition leader invited us.
+  private onCoalitionInviteEvent(update: CoalitionInviteUpdate) {
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer || update.recipientID !== myPlayer.smallID()) return;
+    const inviter = this.game.playerBySmallID(update.inviterID) as PlayerView;
+    const reply = (accept: boolean) =>
+      this.eventBus.emit(
+        new SendCoalitionIntentEvent({
+          type: "coalition_reply",
+          coalitionID: update.coalitionID,
+          accept,
+        }),
+      );
+    this.eventBus.emit(new PlaySoundEffectEvent("alliance-suggested"));
+    this.addEvent({
+      description: translateText("coalition.invited", {
+        name: inviter.displayName(),
+        coalition: update.name,
+      }),
+      buttons: [
+        {
+          text: translateText("events_display.focus"),
+          className: "btn-gray",
+          action: () => this.eventBus.emit(new GoToPlayerEvent(inviter)),
+          preventClose: true,
+        },
+        {
+          text: translateText("coalition.join"),
+          className: "btn",
+          action: () => {
+            this.eventBus.emit(new PlaySoundEffectEvent("alliance-accepted"));
+            reply(true);
+          },
+        },
+        {
+          text: translateText("coalition.decline"),
+          className: "btn-info",
+          action: () => reply(false),
+        },
+      ],
+      type: MessageType.ALLIANCE_REQUEST,
+      createdAt: this.game.ticks(),
+      priority: 0,
+      duration: update.expiresAt - this.game.ticks(),
+      focusID: update.inviterID,
+      requestorID: update.inviterID,
     });
   }
 

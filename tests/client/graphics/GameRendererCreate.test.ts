@@ -30,6 +30,7 @@ const HUD_TAGS = [
   "replay-panel",
   "game-right-sidebar",
   "view-mode-picker",
+  "coalition-panel",
   "settings-modal",
   "graphics-settings-modal",
   "unit-display",

@@ -7,7 +7,11 @@ import {
   PlayerType,
   Relation,
 } from "@openfront/engine-api/game/GameTypes";
-import { Emoji, flattenedEmojiTable } from "@openfront/engine-api/Schemas";
+import {
+  CoalitionIntent,
+  Emoji,
+  flattenedEmojiTable,
+} from "@openfront/engine-api/Schemas";
 import { renderNumber, renderTroops } from "@openfront/engine-lib/Format";
 import type { UserMeResponse } from "@openfront/shared/ApiSchemas";
 import { assetUrl } from "@openfront/shared/AssetUrls";
@@ -35,11 +39,13 @@ import {
   PlayerReportedEvent,
   SendAllianceRequestIntentEvent,
   SendBreakAllianceIntentEvent,
+  SendCoalitionIntentEvent,
   SendEmbargoAllIntentEvent,
   SendEmbargoIntentEvent,
   SendEmojiIntentEvent,
   SendTargetPlayerIntentEvent,
 } from "../../Transport";
+import { ToggleCoalitionPanelEvent } from "./CoalitionPanel";
 import { UIState } from "../../UIState";
 import { UserSettings } from "../../UserSettings";
 import { renderDuration, showToast, translateText } from "../../Utils";
@@ -328,6 +334,154 @@ export class PlayerPanel extends LitElement implements Controller {
     e.stopPropagation();
     this.eventBus.emit(new SendEmbargoIntentEvent(other, "stop"));
     this.hide();
+  }
+
+  // Fork: one coalition action, then close the panel.
+  private coalitionAction(e: Event, intent: CoalitionIntent) {
+    e.stopPropagation();
+    this.eventBus.emit(new SendCoalitionIntentEvent(intent));
+    this.hide();
+  }
+
+  private openCoalitionPanel(e: Event) {
+    e.stopPropagation();
+    this.eventBus.emit(new ToggleCoalitionPanelEvent(true));
+    this.hide();
+  }
+
+  // Fork: coalition buttons. On another player: what our leader role
+  // allows (invite, kick, sanction, attack order, hand over). On our own
+  // panel: found one, or leave ours.
+  private renderCoalitionActions(my: PlayerView, other: PlayerView) {
+    const i = this.actions?.interaction;
+    const buttons = [];
+    if (other === my) {
+      if (my.coalition() !== null) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) =>
+              this.coalitionAction(e, { type: "coalition_leave" }),
+            icon: breakAllianceIcon,
+            iconAlt: "Leave coalition",
+            title: translateText("coalition.leave_desc"),
+            label: translateText("coalition.leave"),
+            type: "red",
+          }),
+        );
+      } else if (this.actions?.canCreateCoalition) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) => this.openCoalitionPanel(e),
+            icon: allianceIcon,
+            iconAlt: "Found coalition",
+            title: translateText("coalition.create"),
+            label: translateText("coalition.create"),
+            type: "indigo",
+          }),
+        );
+      }
+    } else if (i !== undefined) {
+      const id = other.id();
+      if (i.canCoalitionInvite) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) =>
+              this.coalitionAction(e, {
+                type: "coalition_invite",
+                recipient: id,
+              }),
+            icon: allianceIcon,
+            iconAlt: "Invite",
+            title: translateText("coalition.invite"),
+            label: translateText("coalition.invite"),
+            type: "indigo",
+          }),
+        );
+      }
+      if (i.canCoalitionTransfer) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) =>
+              this.coalitionAction(e, {
+                type: "coalition_transfer",
+                target: id,
+              }),
+            icon: allianceIcon,
+            iconAlt: "Make leader",
+            title: translateText("coalition.transfer"),
+            label: translateText("coalition.transfer"),
+            type: "normal",
+          }),
+        );
+      }
+      if (i.canCoalitionKick) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) =>
+              this.coalitionAction(e, { type: "coalition_kick", target: id }),
+            icon: breakAllianceIcon,
+            iconAlt: "Kick",
+            title: translateText("coalition.kick"),
+            label: translateText("coalition.kick"),
+            type: "red",
+          }),
+        );
+      }
+      if (i.canCoalitionSanction) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) =>
+              this.coalitionAction(e, {
+                type: "coalition_sanction",
+                target: id,
+                action: "start",
+              }),
+            icon: stopTradingIcon,
+            iconAlt: "Sanction",
+            title: translateText("coalition.sanction_desc"),
+            label: translateText("coalition.sanction"),
+            type: "yellow",
+          }),
+        );
+      }
+      if (i.canCoalitionUnsanction) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) =>
+              this.coalitionAction(e, {
+                type: "coalition_sanction",
+                target: id,
+                action: "stop",
+              }),
+            icon: startTradingIcon,
+            iconAlt: "Lift sanction",
+            title: translateText("coalition.unsanction"),
+            label: translateText("coalition.unsanction"),
+            type: "green",
+          }),
+        );
+      }
+      if (i.canCoalitionTarget) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) =>
+              this.coalitionAction(e, {
+                type: "coalition_target",
+                target: id,
+              }),
+            icon: targetIcon,
+            iconAlt: "Order attack",
+            title: translateText("coalition.target_desc"),
+            label: translateText("coalition.target"),
+            type: "red",
+          }),
+        );
+      }
+    }
+    if (buttons.length === 0) return "";
+    return html`<div class="grid auto-cols-fr grid-flow-col gap-1">
+      ${buttons}
+    </div>`;
   }
 
   private onStopTradingEnemiesClick(e: Event) {
@@ -1015,6 +1169,7 @@ export class PlayerPanel extends LitElement implements Controller {
               })}
             </div>`
           : ""}
+        ${this.renderCoalitionActions(my, other)}
         ${this.renderModeration(my, other, this.isAdminRole)}
       </div>
     `;

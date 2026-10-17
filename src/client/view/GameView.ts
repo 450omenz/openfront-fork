@@ -1,3 +1,4 @@
+import type { CoalitionView } from "@openfront/engine-api/game/GameUpdates";
 import { GameMap, TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   Cell,
@@ -116,6 +117,9 @@ export class GameView implements GameLike {
   private _namesDirty = true;
   /** Relation matrix: allies/embargoes changed, or a player was added. */
   private _relationsDirty = true;
+  // Fork: the latest coalition list, and each member's coalition.
+  private _coalitions: CoalitionView[] = [];
+  private _coalitionBySid = new Map<number, CoalitionView>();
   /** Alliance clusters: allies changed, or a player was added. */
   private _clustersDirty = true;
 
@@ -229,6 +233,16 @@ export class GameView implements GameLike {
     return (this.lastUpdate?.pendingTurns ?? 0) > 1;
   }
 
+  /** Fork: every coalition, as of the last update. */
+  coalitions(): readonly CoalitionView[] {
+    return this._coalitions;
+  }
+
+  /** Fork: the coalition a player belongs to, if any. */
+  coalitionOf(smallID: number): CoalitionView | null {
+    return this._coalitionBySid.get(smallID) ?? null;
+  }
+
   public update(gu: GameUpdateViewData) {
     // Unit set/ownership changes below; rebuild the owner index on demand.
     this._unitsByOwnerStale = true;
@@ -274,6 +288,16 @@ export class GameView implements GameLike {
     }
     if (gu.updates[GameUpdateType.Win].length > 0) {
       this._gameOver = true;
+    }
+    const coalitionUpdates = gu.updates[GameUpdateType.Coalitions] ?? [];
+    if (coalitionUpdates.length > 0) {
+      this._coalitions =
+        coalitionUpdates[coalitionUpdates.length - 1].coalitions;
+      this._coalitionBySid = new Map();
+      for (const c of this._coalitions) {
+        for (const sid of c.memberIDs) this._coalitionBySid.set(sid, c);
+      }
+      this._relationsDirty = true;
     }
 
     const myDisplayName = formatPlayerDisplayName(
@@ -535,7 +559,11 @@ export class GameView implements GameLike {
     // triggers) on unchanged ticks.
     if (this._relationsDirty) {
       this._relationsDirty = false;
-      const rel = buildRelationMatrix(this._playerStates, this._teams);
+      const rel = buildRelationMatrix(
+        this._playerStates,
+        this._teams,
+        this._coalitions,
+      );
       f.relationMatrix = rel.matrix;
       f.relationSize = rel.size;
       f.relationsDirty = true;

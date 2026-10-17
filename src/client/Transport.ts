@@ -10,6 +10,7 @@ import {
 import {
   AllPlayersStats,
   ClientID,
+  CoalitionIntent,
   Intent,
   Winner,
 } from "@openfront/engine-api/Schemas";
@@ -180,6 +181,11 @@ export class SendEmbargoAllIntentEvent implements GameEvent {
   constructor(public readonly action: "start" | "stop") {}
 }
 
+/** Fork: any coalition action (create, invite, reply, leave, kick, ...). */
+export class SendCoalitionIntentEvent implements GameEvent {
+  constructor(public readonly intent: CoalitionIntent) {}
+}
+
 export class SendDeleteUnitIntentEvent implements GameEvent {
   constructor(public readonly unitId: number) {}
 }
@@ -330,6 +336,7 @@ export class Transport {
     this.subscribe(SendEmbargoAllIntentEvent, (e) =>
       this.onSendEmbargoAllIntent(e),
     );
+    this.subscribe(SendCoalitionIntentEvent, (e) => this.sendIntent(e.intent));
     this.subscribe(BuildUnitIntentEvent, (e) => this.onBuildUnitIntent(e));
 
     this.subscribe(PauseGameIntentEvent, (e) => this.onPauseGameIntent(e));

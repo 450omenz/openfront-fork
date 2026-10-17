@@ -19,12 +19,28 @@ export interface RelationMatrixResult {
  * Embargo overrides friendly (matching game priority).
  *
  * @param teams  Optional smallID→team map. Same-team players are marked friendly.
+ * @param coalitions  Fork: members of a coalition are friendly; its
+ *   sanctions show as embargoes with every member.
  */
 export function buildRelationMatrix(
   players: ReadonlyMap<number, PlayerState>,
   teams?: ReadonlyMap<number, string>,
+  coalitions?: readonly {
+    memberIDs: readonly number[];
+    sanctionIDs: readonly number[];
+  }[],
 ): RelationMatrixResult {
   matrix.fill(RELATION_NEUTRAL);
+  const ok = (sid: number) => sid > 0 && sid < RELATION_SIZE;
+  for (const c of coalitions ?? []) {
+    const m = c.memberIDs.filter(ok);
+    for (let i = 0; i < m.length; i++) {
+      for (let j = i + 1; j < m.length; j++) {
+        matrix[m[i]! * RELATION_SIZE + m[j]!] = RELATION_FRIENDLY;
+        matrix[m[j]! * RELATION_SIZE + m[i]!] = RELATION_FRIENDLY;
+      }
+    }
+  }
 
   // Teammates — mark same-team pairs as friendly (before embargoes, which override)
   if (teams && teams.size > 0) {
@@ -72,6 +88,17 @@ export function buildRelationMatrix(
           matrix[sid * RELATION_SIZE + eID] = RELATION_EMBARGO;
           matrix[eID * RELATION_SIZE + sid] = RELATION_EMBARGO;
         }
+      }
+    }
+  }
+
+  for (const c of coalitions ?? []) {
+    for (const s of c.sanctionIDs) {
+      if (!ok(s)) continue;
+      for (const m of c.memberIDs) {
+        if (!ok(m)) continue;
+        matrix[m * RELATION_SIZE + s] = RELATION_EMBARGO;
+        matrix[s * RELATION_SIZE + m] = RELATION_EMBARGO;
       }
     }
   }

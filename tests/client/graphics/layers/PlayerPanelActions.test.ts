@@ -63,6 +63,7 @@ const my = {
   type: () => PlayerType.Human,
   clientID: () => "client-1",
   isLobbyCreator: () => false,
+  coalition: () => null,
 } as unknown as PlayerView;
 
 const other = {
@@ -236,6 +237,30 @@ describe("PlayerPanel - action buttons follow PlayerActions capability flags", (
     expect(labels).not.toContain("player_panel.target");
     expect(labels).not.toContain("player_panel.break_alliance");
     expect(labels).not.toContain("player_panel.send_alliance");
+  });
+
+  test("coalition buttons follow the coalition flags (fork)", () => {
+    (panel as any).actions = {
+      interaction: {
+        canCoalitionInvite: true,
+        canCoalitionSanction: true,
+        canCoalitionTarget: true,
+      },
+    };
+    (panel as any).renderActions(my, other);
+    const labels = renderedLabels();
+    expect(labels).toContain("coalition.invite");
+    expect(labels).toContain("coalition.sanction");
+    expect(labels).toContain("coalition.target");
+    expect(labels).not.toContain("coalition.kick");
+    expect(labels).not.toContain("coalition.unsanction");
+    expect(labels).not.toContain("coalition.transfer");
+  });
+
+  test("own panel offers founding a coalition when allowed (fork)", () => {
+    (panel as any).actions = { canCreateCoalition: true, interaction: {} };
+    (panel as any).renderActions(my, my);
+    expect(renderedLabels()).toContain("coalition.create");
   });
 
   test("own panel uses canSendEmojiAllPlayers instead of the interaction flag", () => {

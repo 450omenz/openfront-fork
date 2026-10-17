@@ -1,3 +1,4 @@
+import type { CoalitionView } from "@openfront/engine-api/game/GameUpdates";
 import { ClientID } from "@openfront/engine-api/Schemas";
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
@@ -520,7 +521,30 @@ export class PlayerView implements PlayerLike {
   }
 
   isFriendly(other: PlayerView): boolean {
-    return this.isAlliedWith(other) || this.isOnSameTeam(other);
+    return (
+      this.isAlliedWith(other) ||
+      this.isOnSameTeam(other) ||
+      this.isCoalitionMember(other)
+    );
+  }
+
+  /** Fork: this player's coalition, if any. */
+  coalition(): CoalitionView | null {
+    return this.game.coalitionOf(this.smallID());
+  }
+
+  /** Fork: in the same coalition (and not the same player). */
+  isCoalitionMember(other: PlayerView): boolean {
+    if (other === this) return false;
+    const c = this.coalition();
+    return c !== null && c.memberIDs.includes(other.smallID());
+  }
+
+  // Fork: the coalition leader's standing attack order.
+  private coalitionTargetID(): number | null {
+    const c = this.coalition();
+    if (c === null || c.targetUntil === null) return null;
+    return c.targetUntil > this.game.ticks() ? c.targetID : null;
   }
 
   isRequestingAllianceWith(other: PlayerView) {
@@ -555,6 +579,12 @@ export class PlayerView implements PlayerLike {
       result.push(this.game.playerBySmallID(id) as PlayerView);
     }
 
+    // Fork: the coalition's attack order
+    const order = this.coalitionTargetID();
+    if (order !== null) {
+      result.push(this.game.playerBySmallID(order) as PlayerView);
+    }
+
     // Add allies' targets
     for (const allyID of this.state.allies) {
       const ally = this.game.playerBySmallID(allyID) as PlayerView;
@@ -580,6 +610,7 @@ export class PlayerView implements PlayerLike {
 
   hasTransitiveTarget(sid: number): boolean {
     if (this.state.targets.includes(sid)) return true;
+    if (this.coalitionTargetID() === sid) return true;
 
     for (const allyID of this.state.allies) {
       const ally = this.game.playerBySmallID(allyID) as PlayerView;

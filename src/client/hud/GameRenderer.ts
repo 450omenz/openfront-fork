@@ -47,6 +47,7 @@ import { SettingsModal } from "./layers/SettingsModal";
 import { SpawnTimer } from "./layers/SpawnTimer";
 import { TutorialPanel } from "./layers/TutorialPanel";
 import { UnitDisplay } from "./layers/UnitDisplay";
+import { CoalitionPanel } from "./layers/CoalitionPanel";
 import { ViewModePicker } from "./layers/ViewModePicker";
 import { WinModal } from "./layers/WinModal";
 import { loadAllSprites } from "./SpriteLoader";
@@ -237,6 +238,15 @@ export function createRenderer(
   viewModePicker.eventBus = eventBus;
   viewModePicker.view = view;
 
+  const coalitionPanel = document.querySelector(
+    "coalition-panel",
+  ) as CoalitionPanel;
+  if (!(coalitionPanel instanceof CoalitionPanel)) {
+    console.error("coalition panel not found");
+  }
+  coalitionPanel.eventBus = eventBus;
+  coalitionPanel.game = game;
+
   const unitDisplay = document.querySelector("unit-display") as UnitDisplay;
   if (!(unitDisplay instanceof UnitDisplay)) {
     console.error("unit display not found");
@@ -343,6 +353,7 @@ export function createRenderer(
     new LiveStatsController(game, eventBus),
     new StructureHighlightController(eventBus, view),
     viewModePicker,
+    coalitionPanel,
     new ViewModeController(eventBus, view, game, userSettings),
     new AttackingTroopsController(game, eventBus, userSettings, view),
     new SoundEffectController(game, eventBus),
