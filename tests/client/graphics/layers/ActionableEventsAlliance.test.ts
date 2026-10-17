@@ -209,3 +209,66 @@ describe("ActionableEvents - alliance renewal cleanup (allianceID based)", () =>
     ).toBe(false);
   });
 });
+
+// Fork: coalition invites and pact proposals used to share the alliance
+// request check and vanished on the next tick.
+describe("ActionableEvents - coalition and pact cards", () => {
+  const inviter = (opts: { coalition?: object | null } = {}) => ({
+    isAlive: () => true,
+    isRequestingAllianceWith: () => false, // not an alliance request
+    coalition: () => opts.coalition ?? { id: 1 },
+  });
+
+  function display(me: object, from: object) {
+    const d = new ActionableEvents();
+    (d as any).game = {
+      ticks: () => 10,
+      myPlayer: () => me,
+      playerBySmallID: () => from,
+    };
+    return d;
+  }
+
+  const card = (kind: "coalition" | "pact") => ({
+    description: "",
+    type: MessageType.ALLIANCE_REQUEST,
+    createdAt: 0,
+    duration: 200,
+    focusID: 2,
+    requestorID: 2,
+    buttons: [],
+    kind,
+  });
+
+  test("a coalition invite stays while it can still be accepted", () => {
+    const me = { coalition: () => null };
+    const d = display(me, inviter());
+    expect((d as any).eventStillValid(card("coalition"))).toBe(true);
+  });
+
+  test("a coalition invite goes once we're in a coalition", () => {
+    const me = { coalition: () => ({ id: 3 }) };
+    const d = display(me, inviter());
+    expect((d as any).eventStillValid(card("coalition"))).toBe(false);
+  });
+
+  test("a pact proposal stays until a pact exists", () => {
+    let pact: object | null = null;
+    const me = { pactWith: () => pact };
+    const d = display(me, inviter());
+    expect((d as any).eventStillValid(card("pact"))).toBe(true);
+    pact = { aID: 1, bID: 2 };
+    expect((d as any).eventStillValid(card("pact"))).toBe(false);
+  });
+
+  test("an alliance reply from the same player leaves them alone", () => {
+    const d = new ActionableEvents();
+    (d as any).game = { myPlayer: () => ({ smallID: () => 1 }) };
+    (d as any).requestUpdate = () => {};
+    (d as any).events = [card("coalition"), card("pact")];
+    (d as any).onAllianceRequestReplyEvent({
+      request: { recipientID: 1, requestorID: 2 },
+    });
+    expect((d as any).events).toHaveLength(2);
+  });
+});

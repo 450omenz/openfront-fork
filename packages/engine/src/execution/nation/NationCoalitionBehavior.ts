@@ -80,13 +80,21 @@ export class NationCoalitionBehavior {
     if (inviter.isTraitor() && p.loyalty >= 50) return false;
     if (this.chafesAtBans(c)) return false;
     const bansNukes = c.bannedWeapons().has(UnitType.HydrogenBomb);
+    // Under attack by someone outside the coalition: it would defend us.
+    const besieged = me
+      .incomingAttacks()
+      .some((a) => !c.has(a.attacker()) && a.attacker() !== me);
+    // Safety in numbers: the cautious count it sooner.
+    const strength = totalTroops(c.members());
+    const strongEnough =
+      strength > me.troops() * (p.caution >= 60 ? 1 : STRENGTH_RATIO);
     const reasons =
       // The cautious like a coalition that outlaws the worst weapons.
       (bansNukes && p.caution >= 60) ||
       me.relation(inviter) >= Relation.Friendly ||
       c.members().some((m) => isValuedPartner(this.game, me, m)) ||
-      // Safety in numbers for the cautious.
-      (p.caution >= 60 && totalTroops(c.members()) > me.troops() * 2) ||
+      besieged ||
+      strongEnough ||
       p.loyalty >= JOIN_LOYALTY;
     return reasons;
   }
@@ -264,7 +272,10 @@ const CHAFE_AGGRESSION = 75;
 const CHAFE_LOYALTY = 60;
 // Violations older than this (5 minutes) no longer drive attack orders.
 const VIOLATOR_MEMORY_TICKS = 5 * 60 * 10;
-const JOIN_LOYALTY = 70;
+const JOIN_LOYALTY = 60;
+// Without other reasons, a coalition this many times our troops is worth
+// joining (cautious nations: as strong as us).
+const STRENGTH_RATIO = 1.5;
 const LEAVE_LOYALTY = 40;
 const BETRAY_LOYALTY = 25;
 const BETRAY_TROOP_RATIO = 3;

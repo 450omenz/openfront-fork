@@ -367,6 +367,7 @@ export class GameRunner {
     const leads = mine !== null && mine.leader() === player;
     return {
       canCoalitionInvite: c.canInvite(player, other),
+      coalitionInviteBlocked: c.inviteBlocker(player, other) ?? undefined,
       canCoalitionKick: c.canKick(player, other),
       canCoalitionSanction:
         c.canSanction(player, other) && !mine!.sanctions().has(other),

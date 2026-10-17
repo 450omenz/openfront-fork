@@ -40,6 +40,8 @@ interface ActionableEvent {
   allianceID?: number;
   duration?: Tick;
   requestorID: number;
+  /** Fork: coalition invite or pact proposal cards (not alliance ones). */
+  kind?: "coalition" | "pact";
 }
 
 @customElement("actionable-events")
@@ -121,19 +123,8 @@ export class ActionableEvents extends LitElement implements Controller {
       }
     }
 
-    const remainingEvents = this.events.filter(
-      (event) =>
-        (event.duration === undefined ||
-          this.game.ticks() - event.createdAt < event.duration) &&
-        (event.type !== MessageType.ALLIANCE_REQUEST ||
-          // We remove Alliance Requests if the requestor is dead.
-          ((
-            this.game.playerBySmallID(event.requestorID) as PlayerView
-          ).isAlive() &&
-            // We remove Alliance Requests if the requestor is no longer requesting an alliance with us.
-            (
-              this.game.playerBySmallID(event.requestorID) as PlayerView
-            ).isRequestingAllianceWith(this.game.myPlayer() as PlayerView))),
+    const remainingEvents = this.events.filter((event) =>
+      this.eventStillValid(event),
     );
 
     if (this.events.length !== remainingEvents.length) {
@@ -267,6 +258,40 @@ export class ActionableEvents extends LitElement implements Controller {
     });
   }
 
+  // Whether a card still applies: not expired, and its request still open.
+  private eventStillValid(event: ActionableEvent): boolean {
+    return (
+      (event.duration === undefined ||
+        this.game.ticks() - event.createdAt < event.duration) &&
+      // Fork: coalition invites and pact proposals have their own rules
+      // (they used to be dropped here by the alliance-request check).
+      (event.kind !== undefined
+        ? this.forkCardStillValid(event)
+        : event.type !== MessageType.ALLIANCE_REQUEST ||
+          // We remove Alliance Requests if the requestor is dead.
+          ((
+            this.game.playerBySmallID(event.requestorID) as PlayerView
+          ).isAlive() &&
+            // We remove Alliance Requests if the requestor is no longer requesting an alliance with us.
+            (
+              this.game.playerBySmallID(event.requestorID) as PlayerView
+            ).isRequestingAllianceWith(this.game.myPlayer() as PlayerView)))
+    );
+  }
+
+  // Fork: a coalition invite stands while the inviter is alive and we're
+  // not in a coalition yet; a pact proposal while the proposer is alive and
+  // no pact with them exists.
+  private forkCardStillValid(event: ActionableEvent): boolean {
+    const me = this.game.myPlayer();
+    const from = this.game.playerBySmallID(event.requestorID) as PlayerView;
+    if (!me || !from.isAlive()) return false;
+    if (event.kind === "coalition") {
+      return me.coalition() === null && from.coalition() !== null;
+    }
+    return me.pactWith(from) === null;
+  }
+
   // Fork: someone proposed a non-aggression pact.
   private onPactProposalEvent(update: PactProposalUpdate) {
     const myPlayer = this.game.myPlayer();
@@ -313,6 +338,7 @@ export class ActionableEvents extends LitElement implements Controller {
       duration: update.expiresAt - this.game.ticks(),
       focusID: update.proposerID,
       requestorID: update.proposerID,
+      kind: "pact",
     });
   }
 
@@ -362,6 +388,7 @@ export class ActionableEvents extends LitElement implements Controller {
       duration: update.expiresAt - this.game.ticks(),
       focusID: update.inviterID,
       requestorID: update.inviterID,
+      kind: "coalition",
     });
   }
 
@@ -377,6 +404,7 @@ export class ActionableEvents extends LitElement implements Controller {
       (event) =>
         !(
           event.type === MessageType.ALLIANCE_REQUEST &&
+          event.kind === undefined &&
           event.focusID === requestorID
         ),
     );

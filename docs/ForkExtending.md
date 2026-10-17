@@ -400,8 +400,18 @@ from the PRNG.
   coalition.
 - **Following.** `AiAttackBehavior.followCoalitionOrder` attacks the
   ordered target before the nation saves up troops; members with loyalty
-  under 25 ignore orders. `defendAllies` also defends fellow coalition
-  members.
+  under 25 ignore orders.
+- **Defending.** A member under attack is defended first: `defendAllies(true)`
+  runs at the top of `chooseAttack`, before grabbing free land. It applies
+  on every difficulty and to human attackers too. The defense may use
+  half the nation's troop reserve, and the "too weak to bother" rule
+  doesn't apply to it. Counter-attacks treat the attacker as the opponent
+  (`sendDefense`), so the troops a nation keeps back against its
+  neighbors don't count the attacker. Before this, a nation never fought
+  back against a strong aggressor on Hard and Impossible.
+- **Invites.** A declined invite tells the inviter, and that coalition
+  can't re-invite the player for 2 minutes. `inviteBlocker` explains in
+  the UI why an invite isn't possible right now.
 - **Leaving.** A member leaves when it comes to distrust the leader and its
   loyalty is under 40. A member with loyalty under 25 also leaves when it
   has 3× the troops of a bordering member.

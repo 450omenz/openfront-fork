@@ -489,6 +489,23 @@ export class PlayerPanel extends LitElement implements Controller {
           }),
         );
       }
+      if (!i.canCoalitionInvite && i.coalitionInviteBlocked !== undefined) {
+        // Say why, instead of hiding the button.
+        const why = translateText(
+          `coalition.blocked.${i.coalitionInviteBlocked}`,
+        );
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) => e.stopPropagation(),
+            icon: allianceIcon,
+            iconAlt: "Invite",
+            title: why,
+            label: `${translateText("coalition.invite")}: ${why}`,
+            type: "normal",
+            disabled: true,
+          }),
+        );
+      }
       if (i.canCoalitionTransfer) {
         buttons.push(
           actionButton({

@@ -575,6 +575,8 @@ export interface Coalitions {
   sanctioned(a: Player, b: Player): boolean;
   canCreate(p: Player): boolean;
   canInvite(leader: Player, target: Player): boolean;
+  /** Why the leader can't invite the target now (null: they can). */
+  inviteBlocker(leader: Player, target: Player): string | null;
   canKick(leader: Player, target: Player): boolean;
   canSanction(leader: Player, target: Player): boolean;
   canTarget(leader: Player, target: Player): boolean;

@@ -92,6 +92,25 @@ describe("NationCoalitionBehavior", () => {
       expect(game.coalitions().invitesFor(n1)).toHaveLength(0); // answered
     });
 
+    test("a nation under attack joins a coalition that would defend it", () => {
+      const c = game.coalitions().create(h, "Pact")!;
+      e.addTroops(1_000_000);
+      game.config().spawnImmunityDuration = () => 0;
+      game.config().nationSpawnImmunityDuration = () => 0;
+      e.createAttack(n1, 10_000, null, new Set());
+      game.coalitions().invite(h, n1);
+      behavior(n1).handleCoalitions();
+      expect(c.has(n1)).toBe(true);
+    });
+
+    test("joins a clearly stronger coalition", () => {
+      const c = game.coalitions().create(h, "Pact")!;
+      h.addTroops(1_000_000);
+      game.coalitions().invite(h, n1);
+      behavior(n1).handleCoalitions();
+      expect(c.has(n1)).toBe(true);
+    });
+
     test("a loyal diplomat joins a neutral inviter", () => {
       setPersonality(
         n1,

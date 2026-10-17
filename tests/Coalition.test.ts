@@ -87,6 +87,41 @@ describe("Coalitions", () => {
     expect(invites[0].recipientID).toBe(b.smallID());
   });
 
+  test("a declined invite tells the inviter and can't be repeated at once", () => {
+    act(a, { kind: "create", name: "Pact" });
+    const pact = game.coalitions().of(a)!;
+    act(a, { kind: "invite", target: b.id() });
+    expect(game.coalitions().inviteBlocker(a, b)).toBe("pending");
+    game.addExecution(
+      new CoalitionExecution(b, {
+        kind: "reply",
+        coalitionID: pact.id(),
+        accept: false,
+      }),
+    );
+    const updates = game.executeNextTick();
+    const told = updates[GameUpdateType.DisplayEvent].some(
+      (m) =>
+        m.message === "events_display.coalition_invite_declined" &&
+        m.playerID === a.smallID(),
+    );
+    expect(told).toBe(true);
+    expect(game.coalitions().canInvite(a, b)).toBe(false);
+    expect(game.coalitions().inviteBlocker(a, b)).toBe("declined");
+    executeTicks(game, 2 * 60 * 10);
+    expect(game.coalitions().canInvite(a, b)).toBe(true);
+  });
+
+  test("says why an invite can't be sent", () => {
+    const pact = pactOfAB();
+    act(c, { kind: "create", name: "Other" });
+    expect(game.coalitions().inviteBlocker(a, c)).toBe("other_coalition");
+    expect(game.coalitions().inviteBlocker(a, b)).toBeNull(); // a member
+    act(a, { kind: "sanction", target: d.id(), on: true });
+    expect(game.coalitions().inviteBlocker(a, d)).toBe("sanctioned");
+    expect(pact.size()).toBe(2);
+  });
+
   test("an invite lapses", () => {
     act(a, { kind: "create", name: "Pact" });
     const pact = game.coalitions().of(a)!;

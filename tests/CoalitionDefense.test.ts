@@ -1,0 +1,91 @@
+import {
+  Archetype,
+  Cell,
+  Difficulty,
+  Nation,
+  PlayerInfo,
+  PlayerType,
+} from "@openfront/engine-api/game/GameTypes";
+import { EngineConfig } from "@openfront/engine/configuration/EngineConfig";
+import { AttackExecution } from "@openfront/engine/execution/AttackExecution";
+import { NationExecution } from "@openfront/engine/execution/NationExecution";
+import { PlayerExecution } from "@openfront/engine/execution/PlayerExecution";
+import { Game, Player } from "@openfront/engine/game/Game";
+import {
+  personalityOf,
+  setPersonality,
+} from "@openfront/engine/game/NationPersonality";
+import { setup } from "./util/Setup";
+
+// Fork: a nation in your coalition comes to your aid when you're attacked,
+// on every difficulty — even with free land to grab, below its troop
+// reserve, against a stronger attacker, and when that attacker is human.
+async function scenario(difficulty: Difficulty) {
+  const nation = new Nation(
+    new Cell(75, 25),
+    new PlayerInfo("N", PlayerType.Nation, null, "N"),
+  );
+  const game: Game = await setup(
+    "plains",
+    { difficulty },
+    [
+      new PlayerInfo("h", PlayerType.Human, "ch", "h"),
+      new PlayerInfo("e", PlayerType.Human, "ce", "e"),
+    ],
+    undefined,
+    EngineConfig,
+    false,
+    [nation],
+  );
+  game.addExecution(new NationExecution("g", nation));
+  for (let i = 0; i < 60 && !game.player("N").hasSpawned(); i++) {
+    game.executeNextTick();
+  }
+  game.endSpawnPhase();
+  // Early-game immunity would hold back the aggressor's attack.
+  game.config().spawnImmunityDuration = () => 0;
+  game.config().nationSpawnImmunityDuration = () => 0;
+  const [h, e, n] = ["h", "e", "N"].map((id) => game.player(id));
+  const own = (p: Player, x0: number, y0: number, w: number, hh: number) => {
+    for (let x = x0; x < x0 + w; x++)
+      for (let y = y0; y < y0 + hh; y++) p.conquer(game.ref(x, y));
+  };
+  own(h, 0, 0, 50, 100);
+  own(n, 50, 0, 50, 50);
+  own(e, 50, 50, 50, 50); // borders both h and n
+  for (const p of [h, e]) game.addExecution(new PlayerExecution(p));
+  h.addTroops(50_000);
+  e.addTroops(400_000); // the aggressor is far stronger
+  setPersonality(n, {
+    ...personalityOf(n),
+    archetype: Archetype.Diplomat,
+    loyalty: 90,
+  });
+  const c = game.coalitions().create(h, "Pact")!;
+  game.coalitions().invite(h, n);
+  for (let i = 0; i < 150 && !c.has(n); i++) game.executeNextTick();
+  return { game, h, e, n, c };
+}
+
+describe("coalition members defend each other", () => {
+  it.each([
+    Difficulty.Easy,
+    Difficulty.Medium,
+    Difficulty.Hard,
+    Difficulty.Impossible,
+  ])(
+    "%s",
+    async (difficulty) => {
+      const { game, h, e, n, c } = await scenario(difficulty);
+      expect(c.has(n)).toBe(true); // a loyal nation accepted the invite
+      game.addExecution(new AttackExecution(100_000, e, h.id(), null));
+      let helped = false;
+      for (let i = 0; i < 200 && !helped; i++) {
+        game.executeNextTick();
+        helped = n.outgoingAttacks().some((a) => a.target() === e);
+      }
+      expect(helped).toBe(true);
+    },
+    120_000,
+  );
+});

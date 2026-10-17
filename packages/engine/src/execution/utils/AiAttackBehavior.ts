@@ -96,6 +96,9 @@ export class AiAttackBehavior {
   // Only set during a maybeAttack call: our land neighbors, and each boat route planned
   private landNeighbors: Set<Player> | null = null;
   private boatRoutes: Map<Player, BoatRoute | null> | null = null;
+  // Fork: set only while sending a coalition member's defense (never
+  // between calls, so not snapshot state).
+  private pledgedDefense = false;
 
   constructor(
     private random: PseudoRandom,
@@ -140,6 +143,7 @@ export class AiAttackBehavior {
     // Only set during a maybeAttack call, so always null between ticks.
     this.landNeighbors = null;
     this.boatRoutes = null;
+    this.pledgedDefense = false;
     this.botAttackTroopsSent = s.botAttackTroopsSent;
     this.followedLandings = s.followedLandings.map((i) => r.attack(i));
     this.triggerRatio = s.triggerRatio;
@@ -243,6 +247,11 @@ export class AiAttackBehavior {
     const borderingEnemies = borderingPlayers.filter(
       (o) => this.player?.isFriendly(o) === false,
     );
+
+    // Fork: a fellow coalition member under attack comes first — before
+    // grabbing free land or saving up troops, on every difficulty (a pledge,
+    // unlike an alliance). The defense may dig into half the reserve.
+    if (this.defendAllies(true)) return;
 
     // Attack TerraNullius but not nuked territory (direct border or across a river)
     const hasNonNukedTerraNullius =
@@ -980,10 +989,24 @@ export class AiAttackBehavior {
 
   // Fork (call to arms): attack whoever is attacking one of our allies. No
   // relation gate or cost: an alliance means showing up when it counts.
-  private defendAllies(): boolean {
+  // Counter-attack whoever is attacking a friend. coalitionOnly: just
+  // fellow coalition members (unless this nation is too disloyal to care).
+  private defendAllies(coalitionOnly = false): boolean {
     if (this.game.config().disableAlliances()) return false;
-    // Allies and fellow coalition members alike.
-    for (const ally of friendsForWar(this.player)) {
+    const coalition = this.player.coalition();
+    let friends: readonly Player[];
+    if (coalitionOnly) {
+      if (
+        coalition === null ||
+        personalityOf(this.player).loyalty < FOLLOW_ORDER_LOYALTY
+      ) {
+        return false;
+      }
+      friends = coalition.members().filter((m) => m !== this.player);
+    } else {
+      friends = friendsForWar(this.player);
+    }
+    for (const ally of friends) {
       const attackers = ally
         .incomingAttacks()
         .map((a) => a.attacker())
@@ -998,7 +1021,9 @@ export class AiAttackBehavior {
           continue;
         }
         if (!this.canReach(attacker)) continue;
-        if (!this.sendAttack(attacker)) continue;
+        if (!this.sendDefense(attacker, coalition?.has(ally) ?? false)) {
+          continue;
+        }
         this.emojiBehavior?.sendEmoji(ally, EMOJI_ASSIST_ACCEPT);
         return true;
       }
@@ -1023,6 +1048,29 @@ export class AiAttackBehavior {
     }
     if (this.player.isFriendly(target) || !this.canReach(target)) return false;
     return this.sendAttack(target);
+  }
+
+  // Fork: a counter-attack on a friend's attacker. The attacker counts as
+  // the opponent, so the troops kept back for neighbors don't count it as a
+  // neighbor to fear (it's the enemy). Coalition members (pledged) also skip
+  // the lower difficulties' reluctance to attack humans.
+  private sendDefense(attacker: Player, pledged: boolean): boolean {
+    if (!pledged && !this.shouldAttack(attacker)) return false;
+    if (respectsPact(this.game, this.player, attacker)) return false;
+    if (!this.player.sharesBorderWith(attacker)) {
+      return this.sendBoatAttack(attacker);
+    }
+    // Pledged: keep only half the usual reserve back, and no "too weak to
+    // bother" refusal (see isAttackTooWeak).
+    const troops = pledged
+      ? (reserve: number) => this.player.troops() - reserve / 2
+      : undefined;
+    this.pledgedDefense = pledged;
+    try {
+      return this.sendLandAttack(attacker, troops, attacker);
+    } finally {
+      this.pledgedDefense = false;
+    }
   }
 
   private assistAllies(): boolean {
@@ -1462,8 +1510,10 @@ export class AiAttackBehavior {
     if (this.player.type() === PlayerType.Bot) return false;
     if (this.game.config().gameConfig().gameMode === GameMode.Team)
       return false;
-    // Nations under attack may retaliate freely
+    // Nations under attack may retaliate freely — and so may a coalition
+    // member defending another (fork): the coalition is under attack.
     if (this.player.incomingAttacks().length > 0) return false;
+    if (this.pledgedDefense) return false;
     const { difficulty } = this.game.config().gameConfig();
     return (
       (difficulty === Difficulty.Hard ||

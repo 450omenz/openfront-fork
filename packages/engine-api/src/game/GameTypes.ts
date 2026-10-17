@@ -500,6 +500,8 @@ export interface PlayerInteraction {
   canCoalitionUnsanction?: boolean;
   canCoalitionTarget?: boolean;
   canCoalitionTransfer?: boolean;
+  /** Why our coalition can't invite this player now (coalition.blocked.*). */
+  coalitionInviteBlocked?: string;
   // Fork: non-aggression pacts with this player.
   canProposePact?: boolean;
   /** Tick our pact with this player ends, if we have one. */

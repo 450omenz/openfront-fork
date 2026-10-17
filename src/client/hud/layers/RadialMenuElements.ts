@@ -1062,6 +1062,23 @@ export const diplomacyMenuElement: MenuElement = {
         (q) => !!i(q)?.canCoalitionInvite,
         (q) => ({ type: "coalition_invite", recipient: target(q) }),
       ),
+      // Can't invite right now: a disabled item that says why.
+      {
+        id: "coalition_invite_blocked",
+        name: "invite blocked",
+        icon: allianceIcon,
+        color: COLORS.disabled,
+        displayed: (q) =>
+          !i(q)?.canCoalitionInvite &&
+          i(q)?.coalitionInviteBlocked !== undefined,
+        disabled: () => true,
+        tooltipItems: tip(
+          translateText("coalition.invite"),
+          translateText(
+            `coalition.blocked.${i(p)?.coalitionInviteBlocked ?? "pending"}`,
+          ),
+        ),
+      },
       coalitionLeaf(
         "coalition_target",
         targetIcon,

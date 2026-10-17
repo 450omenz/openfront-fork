@@ -601,6 +601,16 @@
   "coalition": {
     "ban_hint": "Members can't build banned weapons. Outsiders who use one on a member are sanctioned.",
     "banned_weapons": "Banned weapons",
+    "blocked": {
+      "bot": "tribes can't join coalitions",
+      "cooldown": "they left or were removed from a coalition recently",
+      "dead": "they're out of the game",
+      "declined": "they declined recently; wait 2 minutes",
+      "full": "your coalition is full",
+      "other_coalition": "already in another coalition",
+      "pending": "invite sent, waiting for their answer",
+      "sanctioned": "your coalition sanctions them"
+    },
     "create": "Found coalition",
     "decline": "Decline",
     "explain": "A coalition is a lasting peace: members can't attack each other, trade as allies and fight together. Its leader can ban trade with outsiders and order attacks.",
@@ -948,6 +958,8 @@
     "betrayal_description": "You broke your alliance with {name}, making you a TRAITOR ({malusPercent}% defense debuff for {durationText})",
     "betrayed_you": "{name} broke their alliance with you",
     "coalition_dissolved": "Your coalition {name} has dissolved",
+    "coalition_invite_declined": "{name} declined your invitation to {coalition}",
+    "coalition_invite_sent": "Invitation to {coalition} sent to {name}",
     "coalition_joined": "{name} joined {coalition}",
     "coalition_kicked": "You were removed from the coalition {name}",
     "coalition_left": "{name} broke with {coalition}!",

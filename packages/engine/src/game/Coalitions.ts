@@ -125,6 +125,12 @@ export class CoalitionManager implements Coalitions {
   private invites: CoalitionInvite[] = [];
   // Tick a player last left or was kicked out of a coalition.
   private leftAt = new Map<Player, Tick>();
+  // Invites turned down: that coalition waits before asking again.
+  private declined: {
+    coalition: Coalition;
+    recipient: Player;
+    tick: Tick;
+  }[] = [];
   // Derived: each member's coalition (isFriendly asks a lot).
   private index = new Map<Player, CoalitionImpl>();
 
@@ -162,21 +168,47 @@ export class CoalitionManager implements Coalitions {
   }
 
   canInvite(leader: Player, target: Player): boolean {
-    const c = this.ledBy(leader);
     return (
-      c !== null &&
+      this.ledBy(leader) !== null &&
       target !== leader &&
-      this.eligible(target) &&
-      this.implOf(target) === null &&
-      !c._sanctions.has(target) &&
-      c.size() < this.game.config().coalitionMaxMembers() &&
-      !this.invites.some(
-        (i) =>
-          i.coalition === c &&
-          i.recipient === target &&
-          this.live(i, this.game.ticks()),
-      )
+      this.implOf(target) !== this.implOf(leader) &&
+      this.inviteBlocker(leader, target) === null
     );
+  }
+
+  /**
+   * Why `leader` can't invite `target` right now, or null if nothing stands
+   * in the way (or `leader` leads no coalition, or `target` is already in
+   * it: nothing to explain). Keys under coalition.blocked.* for the UI.
+   */
+  inviteBlocker(leader: Player, target: Player): InviteBlocker | null {
+    const c = this.ledBy(leader);
+    if (c === null || target === leader || c.has(target)) return null;
+    const now = this.game.ticks();
+    if (target.type() === PlayerType.Bot) return "bot";
+    if (!target.isAlive()) return "dead";
+    if (this.implOf(target) !== null) return "other_coalition";
+    if (c._sanctions.has(target)) return "sanctioned";
+    if (c.size() >= this.game.config().coalitionMaxMembers()) return "full";
+    if (
+      this.invites.some(
+        (i) => i.coalition === c && i.recipient === target && this.live(i, now),
+      )
+    ) {
+      return "pending";
+    }
+    if (
+      this.declined.some(
+        (d) =>
+          d.coalition === c &&
+          d.recipient === target &&
+          now - d.tick < INVITE_AGAIN_TICKS,
+      )
+    ) {
+      return "declined";
+    }
+    if (!this.eligible(target)) return "cooldown";
+    return null;
   }
 
   canKick(leader: Player, target: Player): boolean {
@@ -241,6 +273,15 @@ export class CoalitionManager implements Coalitions {
       createdAt: this.game.ticks(),
     };
     this.invites.push(invite);
+    this.game.displayMessage(
+      "events_display.coalition_invite_sent",
+      MessageType.ALLIANCE_REQUEST,
+      leader.id(),
+      undefined,
+      { name: target.displayName(), coalition: c.name() },
+      undefined,
+      target.id(),
+    );
     this.game.addUpdate({
       type: GameUpdateType.CoalitionInvite,
       coalitionID: c.id(),
@@ -264,7 +305,25 @@ export class CoalitionManager implements Coalitions {
     if (invite === undefined) return false;
     this.invites = this.invites.filter((i) => i !== invite);
     const c = invite.coalition as CoalitionImpl;
-    if (!accept) return true;
+    if (!accept) {
+      // The inviter hears about it, and waits before asking again.
+      this.declined = this.declined.filter(
+        (d) =>
+          now - d.tick < INVITE_AGAIN_TICKS &&
+          !(d.coalition === c && d.recipient === recipient),
+      );
+      this.declined.push({ coalition: c, recipient, tick: now });
+      this.game.displayMessage(
+        "events_display.coalition_invite_declined",
+        MessageType.ALLIANCE_REJECTED,
+        invite.inviter.id(),
+        undefined,
+        { name: recipient.displayName(), coalition: c.name() },
+        undefined,
+        recipient.id(),
+      );
+      return true;
+    }
     if (
       !this.list.includes(c) ||
       this.implOf(recipient) !== null ||
@@ -598,6 +657,11 @@ export class CoalitionManager implements Coalitions {
         player: w.player(p),
         tick: t,
       })),
+      declined: this.declined.map((d) => ({
+        coalitionID: d.coalition.id(),
+        recipient: w.player(d.recipient),
+        tick: d.tick,
+      })),
     };
   }
 
@@ -638,10 +702,30 @@ export class CoalitionManager implements Coalitions {
           ];
     });
     this.leftAt = new Map(s.leftAt.map((e) => [r.player(e.player), e.tick]));
+    this.declined = s.declined.flatMap((d) => {
+      const c = this.list.find((x) => x.id() === d.coalitionID);
+      return c === undefined
+        ? []
+        : [{ coalition: c, recipient: r.player(d.recipient), tick: d.tick }];
+    });
     this.index = new Map();
     for (const c of this.list) for (const m of c._members) this.index.set(m, c);
   }
 }
+
+// After a refusal, a coalition waits 2 minutes before inviting that player
+// again (nation leaders would otherwise re-invite every decision tick).
+const INVITE_AGAIN_TICKS = 2 * 60 * 10;
+
+export type InviteBlocker =
+  | "bot"
+  | "dead"
+  | "other_coalition"
+  | "sanctioned"
+  | "full"
+  | "pending"
+  | "declined"
+  | "cooldown";
 
 // A violator's repeat uses inside this window (1 minute) don't re-notify.
 const VIOLATION_NOTICE_TICKS = 600;
@@ -658,8 +742,10 @@ function successor(members: Player[]): Player {
 
 export const CoalitionsSnapshot = snapshotType({
   name: "Coalitions",
-  version: 2,
+  version: 3,
   migrations: {
+    // Declined-invite cooldowns.
+    2: (d) => ({ ...d, declined: [] }),
     // Weapon bans.
     1: (d) => ({
       ...d,
@@ -695,6 +781,9 @@ export const CoalitionsSnapshot = snapshotType({
       }),
     ),
     leftAt: z.array(z.object({ player: zPlayerRef(), tick: zInt() })),
+    declined: z.array(
+      z.object({ coalitionID: zInt(), recipient: zPlayerRef(), tick: zInt() }),
+    ),
   }),
 });
 export type CoalitionsState = z.infer<typeof CoalitionsSnapshot.schema>;
