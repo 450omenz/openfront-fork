@@ -76,21 +76,50 @@ N× average".
 
 Reusable unit AI lives in `packages/engine/src/execution/behaviors/`.
 
-`FrontSeeker.seekFront(mg, owner, unit, opts)` answers two questions: is the
-unit already at a front, and if not, which owned tile next to the nearest
-front should it drive to? A front is a tile that one of the owner's attacks
-on another player is fighting over. The `spread` option keeps a group from
-piling onto one tile.
+Three pieces work together:
 
-`TankExecution.autoDeploy()` shows how to use it:
+- `FrontMap.frontSlots(mg, owner)` turns the fighting into weighted slots,
+  one per aura-sized cell of front line:
+  - **Attack**: tiles one of the owner's attacks on a player is fighting
+    over. Weight doubles near an enemy Defense Post.
+  - **Defend**: the owner's tiles an incoming attack is about to take,
+    weighted by the attacker's troops against ours.
+  - **Watch**: border with a Hostile player, used only when nothing is being
+    fought over.
 
-- Search on a staggered interval: `(ticks + unit.id()) % interval`.
+  Each slot has a stage tile `tankStandoff` tiles behind the line, so units
+  wait inside aura range without standing where they'd be overrun.
+- `FrontAssigner` places all of an owner's units of one type together, in
+  rounds. Each round sends the nearest free unit to the uncovered slot with
+  the most weight left. A fight counts for less with each unit it already
+  has, so units spread over several attacks and defenses. A unit only
+  leaves its slot for one heavier by `tankReassignMargin` percent.
+- `FrontSeeker.seekFront(mg, unit)` is the one call a unit execution makes.
+
+`TankExecution` shows how to use them:
+
+- Call `registerFrontUnit(unit, state)` in `init` and `restoreSnapshot`, so
+  the assigner can read whether the unit is free, its auto target, and the
+  targets its route search recently failed on.
+- Seek on a fixed interval, with every unit on the same tick
+  (`ticks % interval === 0`). The assignment is memoized for that tick.
 - Remember the target you chose, so you can tell it apart from a player's
   order. Never override an order from the player.
 - After an order from the player arrives, hold position for a while.
 
+Tanks also give a **defensive aura**: attacks on tiles near a defender's
+tank lose more troops and go slower (`tankDefenseBonus`). Tanks on both
+sides cancel out. An idle tank about to be overrun backs off
+`tankStandoff` tiles.
+
+Routing uses `AStarLandBounded`, which stops after a fixed search budget.
+A route that's cut is repaired from where the tank is. An auto target that
+can't be reached is avoided for `tankFailedTargetTicks`; a player's order
+that can't be reached shows a message.
+
 The tank's settings are in `EngineConfig`: `tankAutoFront`,
-`tankFrontSeekInterval`, `tankManualHoldTicks` and `tankFrontSpread`.
+`tankFrontSeekInterval`, `tankManualHoldTicks`, `tankStandoff`,
+`tankReassignMargin`, `tankFailedTargetTicks` and `tankDefenseBonus`.
 
 ## Status indicators
 

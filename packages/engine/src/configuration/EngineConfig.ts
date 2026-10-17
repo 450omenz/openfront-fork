@@ -46,6 +46,8 @@ export interface AttackLogicInput {
   defenderHasDefensePost: boolean;
   /** A tank owned by the attacker is in aura range of the tile (fork). */
   attackerHasTankSupport?: boolean;
+  /** A tank owned by the defender is in aura range of the tile (fork). */
+  defenderHasTankSupport?: boolean;
   /** Fork: trained troops (Military Base) on each side. Omitted = none. */
   attackerTrained?: TrainedInput;
   defenderTrained?: TrainedInput;
@@ -175,6 +177,10 @@ export class EngineConfig extends Config {
   tankAuraAttackBonus(): number {
     return 1.35;
   }
+  // Multiplies attacker loss and tile cost near a defender's tank.
+  tankDefenseBonus(): number {
+    return 1.25;
+  }
   tankShellRange(): number {
     return 8;
   }
@@ -206,9 +212,17 @@ export class EngineConfig extends Config {
   tankManualHoldTicks(): number {
     return 30 * 10;
   }
-  // Auto-deployed tanks avoid staging within this many tiles of each other.
-  tankFrontSpread(): number {
-    return 8;
+  // Auto-deployed tanks stage this many tiles behind the front line.
+  tankStandoff(): number {
+    return 4;
+  }
+  // A tank keeps its front slot unless another beats it by this percent.
+  tankReassignMargin(): number {
+    return 25;
+  }
+  // Ticks a tank avoids a destination its route search failed on.
+  tankFailedTargetTicks(): number {
+    return 100;
   }
   // Percent of worker gold income each tank costs in upkeep.
   tankUpkeepPercent(): number {
@@ -611,11 +625,20 @@ export class EngineConfig extends Config {
     const { attackTroops, attacker, defender } = input;
     let { mag, tileCost } = terrainAttackBase(input.terrain);
 
-    if (input.attackerHasTankSupport) {
+    const atkTank = input.attackerHasTankSupport === true;
+    const defTank = defender !== null && input.defenderHasTankSupport === true;
+    if (atkTank && !defTank) {
       // Spearhead: cheaper, faster, and defense posts don't count.
       mag /= this.tankAuraAttackBonus();
       tileCost /= this.tankAuraAttackBonus();
-    } else if (defender !== null && input.defenderHasDefensePost) {
+    } else if (defTank && !atkTank) {
+      // Defensive aura: the defender's armor makes the tile bloodier/slower.
+      mag *= this.tankDefenseBonus();
+      tileCost *= this.tankDefenseBonus();
+    }
+    // Tanks facing tanks cancel out; an attacker's tank still neutralizes
+    // a defense post either way.
+    if (!atkTank && defender !== null && input.defenderHasDefensePost) {
       mag *= this.defensePostDefenseBonus();
       tileCost *= this.defensePostSpeedBonus();
     }

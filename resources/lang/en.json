@@ -912,6 +912,7 @@
     "sent_emoji_all": "Sent everyone: {emoji}",
     "sent_gold_to_player": "Sent {gold} gold to {name}",
     "sent_troops_to_player": "Sent {troops} troops to {name}",
+    "tank_no_route": "Your tank can't reach that spot over your own land",
     "trade_ship_captured": "Your trade ship was captured by {name}",
     "unit_deconstructed_refund": "Unit deconstructed, {gold} gold refunded",
     "unit_destroyed": "Your {unit} was destroyed",

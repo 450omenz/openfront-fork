@@ -65,6 +65,7 @@ const SCRATCH_INPUT: AttackLogicInput = {
   defender: null,
   defenderHasDefensePost: false,
   attackerHasTankSupport: false,
+  defenderHasTankSupport: false,
   attackerTrained: undefined,
   defenderTrained: undefined,
   entrenchment: undefined,
@@ -74,6 +75,20 @@ const SCRATCH_INPUT: AttackLogicInput = {
   falloutRatio: null,
   borderSize: 0,
 };
+
+// Fork: scratch state for AttackExecution.tankSupport's grid scan.
+const TANK_TYPES = [UnitType.Tank] as const;
+const TANK_SCAN: { found: boolean; owner: Player | null; now: number } = {
+  found: false,
+  owner: null,
+  now: 0,
+};
+function markTank(unit: Unit): boolean {
+  if (unit.owner() !== TANK_SCAN.owner) return false;
+  unit.markSupport(TANK_SCAN.now);
+  TANK_SCAN.found = true;
+  return false; // keep scanning: every tank in range gets the flag
+}
 
 // Fork: per-player training state, memoized for the tick it was taken in.
 // Not on the player itself so it never shows up in snapshots.
@@ -441,18 +456,24 @@ export class AttackExecution implements Execution {
     }
   }
 
-  // Fork: is an attacker's tank in aura range of this tile? Tanks that are get
-  // stamped so they can show their "supporting the front" effect.
-  private tankSupport(tile: TileRef): boolean {
-    const range = this.mg.config().tankAuraRange();
-    if (!this.mg.hasUnitNearby(tile, range, UnitType.Tank, this._owner.id())) {
-      return false;
-    }
-    const now = this.mg.ticks();
-    for (const { unit } of this.mg.nearbyUnits(tile, range, UnitType.Tank)) {
-      if (unit.owner() === this._owner) (unit as Unit).markSupport(now);
-    }
-    return true;
+  // Fork: does `side` have a tank in aura range of this tile? Every such tank
+  // is stamped so it can show its "supporting the front" effect. One pass
+  // over the unit grid with a reused predicate: no result array per tile,
+  // as this runs for every conquered tile.
+  private tankSupport(tile: TileRef, side: Player): boolean {
+    if (side.unitCount(UnitType.Tank) === 0) return false; // memoized
+    TANK_SCAN.found = false;
+    TANK_SCAN.owner = side;
+    TANK_SCAN.now = this.mg.ticks();
+    this.mg.anyUnitNearby(
+      tile,
+      this.mg.config().tankAuraRange(),
+      TANK_TYPES,
+      markTank,
+      side.id(),
+    );
+    TANK_SCAN.owner = null;
+    return TANK_SCAN.found;
   }
 
   // Fork: combat context that holds for the whole tick.
@@ -561,7 +582,10 @@ export class AttackExecution implements Execution {
       input.defender = d;
     }
     input.defenderHasDefensePost = defenderHasDefensePost;
-    input.attackerHasTankSupport = defender !== null && this.tankSupport(tile);
+    input.attackerHasTankSupport =
+      defender !== null && this.tankSupport(tile, this._owner);
+    input.defenderHasTankSupport =
+      defender !== null && this.tankSupport(tile, defender);
     this.fillForkInputs(input, defender, tile);
     input.falloutRatio = this.mg.hasFallout(tile)
       ? this.mg.numTilesWithFallout() / this.mg.numLandTiles()

@@ -147,6 +147,45 @@ describe("Tank", () => {
     expect(tank.tile()).toBe(game.ref(40, 50));
   });
 
+  test("repairs a route cut mid-drive", () => {
+    const tank = buildTank(p1, 10, 50);
+    game.addExecution(
+      new MoveWarshipExecution(p1, [tank.id()], game.ref(10, 80)),
+    );
+    executeTicks(game, 6);
+    // Cut the straight road ahead of it.
+    for (let x = 5; x <= 15; x++) p2.conquer(game.ref(x, 65));
+    executeTicks(game, 120);
+    expect(tank.tile()).toBe(game.ref(10, 80));
+  });
+
+  test("an unreachable order stops the tank", () => {
+    const tank = buildTank(p1, 10, 50);
+    executeTicks(game, 2);
+    // Wall off a p1 pocket the tank can't drive into.
+    for (let x = 30; x <= 36; x++)
+      for (let y = 30; y <= 36; y++)
+        if (x === 30 || x === 36 || y === 30 || y === 36)
+          p2.conquer(game.ref(x, y));
+    const before = tank.tile();
+    tank.setTargetTile(game.ref(33, 33));
+    executeTicks(game, 5);
+    expect(tank.targetTile()).toBeUndefined();
+    expect(tank.tile()).toBe(before);
+  });
+
+  test("an idle tank backs off before its ground is taken", () => {
+    const tank = buildTank(p1, 10, 50);
+    tank.move(game.ref(49, 50));
+    tank.setTargetTile(undefined);
+    p1.addTroops(1_000_000);
+    p2.addTroops(1_000_000);
+    game.addExecution(new AttackExecution(30_000, p2, p1.id(), null));
+    executeTicks(game, 40);
+    expect(tank.isActive()).toBe(true);
+    expect(game.x(tank.tile())).toBeLessThan(49);
+  });
+
   test("is destroyed when its tile is overrun", () => {
     const tank = buildTank(p1, 10, 50);
     p2.conquer(tank.tile());
@@ -218,6 +257,21 @@ describe("Tank", () => {
       const tank = real.attackLogic(input({ attackerHasTankSupport: true }));
       expect(tank.attackerTroopLoss).toBeLessThan(plain.attackerTroopLoss);
       expect(tank.tickFraction).toBeLessThan(plain.tickFraction);
+    });
+
+    test("a defender's tank makes the tile bloodier and slower", () => {
+      const plain = real.attackLogic(input({}));
+      const def = real.attackLogic(input({ defenderHasTankSupport: true }));
+      expect(def.attackerTroopLoss).toBeGreaterThan(plain.attackerTroopLoss);
+      expect(def.tickFraction).toBeGreaterThan(plain.tickFraction);
+    });
+
+    test("tanks on both sides cancel out", () => {
+      const plain = real.attackLogic(input({}));
+      const both = real.attackLogic(
+        input({ attackerHasTankSupport: true, defenderHasTankSupport: true }),
+      );
+      expect(both).toEqual(plain);
     });
 
     test("cancels the defense post bonus", () => {

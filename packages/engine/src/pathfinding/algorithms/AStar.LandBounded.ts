@@ -8,11 +8,17 @@ import { MinHeap } from "./PriorityQueue";
 //
 // Deterministic: integer costs, fixed neighbor order (N, S, W, E).
 //
+// Each search expands at most 4x the start-goal distance plus a fixed
+// allowance of tiles, then gives up: an unreachable goal costs a bounded
+// search instead of a flood of the whole box.
+//
 // Ties between equally short paths break toward the straight start-goal
 // line (same cross-product tie-breaker as AStar.WaterBounded), so a diagonal
 // order becomes a staircase instead of an L. Paths stay shortest; tanks just
 // look like they drive diagonally (see client TankHeading).
 const COST_SCALE = 1000;
+const EXPANSION_FACTOR = 4;
+const EXPANSION_ALLOWANCE = 2000;
 export class AStarLandBounded {
   private stamp = 1;
   private readonly closedStamp: Uint32Array;
@@ -72,6 +78,7 @@ export class AStarLandBounded {
     const dxGoal = gx - sx;
     const dyGoal = gy - sy;
     const crossNorm = Math.max(1, Math.abs(dxGoal) + Math.abs(dyGoal));
+    let budget = EXPANSION_FACTOR * crossNorm + EXPANSION_ALLOWANCE;
     // < COST_SCALE, so it only ever orders paths of equal length.
     const tieBreak = (x: number, y: number): number =>
       Math.floor(
@@ -88,6 +95,7 @@ export class AStarLandBounded {
       if (this.closedStamp[cur] === stamp) continue;
       this.closedStamp[cur] = stamp;
       if (cur === goalL) return this.buildPath(goalL, bw, minX, minY, w);
+      if (--budget < 0) return null;
 
       const cx = (cur % bw) + minX;
       const cy = ((cur / bw) | 0) + minY;
