@@ -20,7 +20,11 @@ import { Controller } from "../../Controller";
 import { SendAllianceRequestIntentEvent } from "../../Transport";
 import { UserSettings } from "../../UserSettings";
 
-import { GoToPlayerEvent, GoToUnitEvent } from "../../TransformHandler";
+import {
+  GoToPlayerEvent,
+  GoToPositionEvent,
+  GoToUnitEvent,
+} from "../../TransformHandler";
 import { GameView, PlayerView, UnitView } from "../../view";
 import { onlyImages } from "./OnlyImages";
 
@@ -40,6 +44,8 @@ interface GameEvent {
   onDelete?: () => void;
   focusID?: number;
   unitView?: UnitView;
+  /** Fork: an attack to show when clicked (smallIDs). */
+  conflict?: { attackerID: number; targetID: number };
 }
 
 const TIER_1_TYPES: ReadonlySet<MessageType> = new Set([
@@ -307,6 +313,7 @@ export class EventsDisplay extends LitElement implements Controller {
       unsafeDescription: true,
       unitView: unitView,
       focusID: event.focusPlayerID,
+      conflict: event.conflict,
     });
   }
 
@@ -533,6 +540,29 @@ export class EventsDisplay extends LitElement implements Controller {
     this.eventBus.emit(new GoToPlayerEvent(attacker));
   }
 
+  /**
+   * Fork: move the camera to the front of `attackerID`'s attack on
+   * `targetID` (the same spot the incoming-attack warnings go to). Once that
+   * attack is over, go to the target instead.
+   */
+  async focusConflict(attackerID: number, targetID: number) {
+    const attacker = this.game.playerBySmallID(attackerID);
+    if (attacker instanceof PlayerView) {
+      const attack = attacker
+        .outgoingAttacks()
+        .find((a) => a.targetID === targetID && !a.retreating);
+      if (attack !== undefined) {
+        const clusters = await attacker.attackClusteredPositions(attack.id);
+        const pos = clusters[0]?.positions[0];
+        if (pos !== undefined) {
+          this.eventBus.emit(new GoToPositionEvent(pos.x, pos.y));
+          return;
+        }
+      }
+    }
+    this.emitGoToPlayerEvent(targetID);
+  }
+
   emitGoToUnitEvent(unit: UnitView) {
     this.eventBus.emit(new GoToUnitEvent(unit));
   }
@@ -656,23 +686,33 @@ export class EventsDisplay extends LitElement implements Controller {
             event.type,
           )}"
         >
-          ${event.focusID
+          ${event.conflict
             ? this.renderButton({
                 content: this.getEventDescription(event),
                 onClick: () => {
-                  if (event.focusID) this.emitGoToPlayerEvent(event.focusID);
+                  const c = event.conflict;
+                  if (c) void this.focusConflict(c.attackerID, c.targetID);
                 },
                 className: "text-left",
               })
-            : event.unitView
+            : event.focusID
               ? this.renderButton({
                   content: this.getEventDescription(event),
                   onClick: () => {
-                    if (event.unitView) this.emitGoToUnitEvent(event.unitView);
+                    if (event.focusID) this.emitGoToPlayerEvent(event.focusID);
                   },
                   className: "text-left",
                 })
-              : this.getEventDescription(event)}
+              : event.unitView
+                ? this.renderButton({
+                    content: this.getEventDescription(event),
+                    onClick: () => {
+                      if (event.unitView)
+                        this.emitGoToUnitEvent(event.unitView);
+                    },
+                    className: "text-left",
+                  })
+                : this.getEventDescription(event)}
         </td>
       </tr>
     `;

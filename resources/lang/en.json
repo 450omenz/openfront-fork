@@ -881,7 +881,7 @@
     "alliance_renewed": "Your alliance with {name} has been renewed",
     "alliance_request_sent": "Alliance request sent to {name}.",
     "alliance_request_status": "{name} {status} your alliance request",
-    "ally_under_attack": "Your ally {ally} is under attack by {attacker}! Strike {attacker} together for a joint attack bonus.",
+    "ally_under_attack": "Your ally {ally} is under attack by {attacker}! Click to see the front, and strike {attacker} together for a joint attack bonus.",
     "atom_bomb_detonated": "{name} - atom bomb detonated",
     "atom_bomb_inbound": "{name} - atom bomb inbound",
     "attack_cancelled_retreat": "Attack cancelled, {troops} soldiers killed during retreat",

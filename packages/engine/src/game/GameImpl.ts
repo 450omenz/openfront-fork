@@ -1113,6 +1113,7 @@ export class GameImpl implements Game {
     params?: Record<string, string | number>,
     unitID?: number,
     focusPlayerID?: PlayerID,
+    conflict?: { attacker: PlayerID; target: PlayerID },
   ): void {
     let id: number | null = null;
     if (playerID !== null) {
@@ -1131,6 +1132,14 @@ export class GameImpl implements Game {
       params: params,
       unitID: unitID,
       focusPlayerID: focusID,
+      ...(conflict === undefined
+        ? {}
+        : {
+            conflict: {
+              attackerID: this.player(conflict.attacker).smallID(),
+              targetID: this.player(conflict.target).smallID(),
+            },
+          }),
     });
   }
 

@@ -348,6 +348,11 @@ export interface DisplayMessageUpdate {
   params?: Record<string, string | number>;
   unitID?: number;
   focusPlayerID?: number;
+  /**
+   * Fork: an attack this message is about (smallIDs). Clicking the message
+   * moves the camera to that attack's front, or to the target once it ends.
+   */
+  conflict?: { attackerID: number; targetID: number };
 }
 
 export type DisplayChatMessageUpdate = {

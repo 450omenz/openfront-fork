@@ -473,6 +473,9 @@ export class AttackExecution implements Execution {
         ally.id(),
         undefined,
         { ally: defender.displayName(), attacker: this._owner.displayName() },
+        undefined,
+        defender.id(),
+        { attacker: this._owner.id(), target: defender.id() },
       );
     }
   }

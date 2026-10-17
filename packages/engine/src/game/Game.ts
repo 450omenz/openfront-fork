@@ -641,6 +641,8 @@ export interface Game extends GameLike {
     params?: Record<string, string | number>,
     unitID?: number,
     focusPlayerID?: PlayerID,
+    // Fork: the attack the message is about; clicking it shows the front.
+    conflict?: { attacker: PlayerID; target: PlayerID },
   ): void;
   displayIncomingUnit(
     unitID: number,

@@ -270,5 +270,7 @@ describe("call to arms", () => {
       (c) => c[0] === "events_display.ally_under_attack" && c[2] === ally.id(),
     );
     expect(calls).toHaveLength(1);
+    // The message names the attack, so clicking it can show the front.
+    expect(calls[0][7]).toEqual({ attacker: enemy.id(), target: nation.id() });
   });
 });
