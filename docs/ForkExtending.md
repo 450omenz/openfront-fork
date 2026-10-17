@@ -117,3 +117,85 @@ status rings scale along with the sprite.
 - Players set the overall size in Settings → Graphics → Units → "Unit size".
 - Developers can tune all of these live in the render debug GUI, under
   Unit → Per-Type Scale.
+
+## Military Bases and trained troops
+
+A Military Base (`UnitType.MilitaryBase`) is a stackable upkeep building
+(see above). Each player has a pool of trained troops, a part of
+`troops()`: `trainedTroops()` and `trainedShare()` on the player.
+
+- **Training** runs in `PlayerExecution` through `trainTick` in
+  `packages/engine/src/game/Military.ts`, every `TRAIN_INTERVAL` ticks. It
+  adds `trainRatePerLevel × level` of the army each tick, up to
+  `trainedCap(level)`.
+- **Training level** (`trainingLevel`) is the player's working base levels
+  plus `allyTrainingShare` × the levels of allies who border them.
+- **Losses** take trained troops in proportion (`removeTroops`), so a fight
+  doesn't strip out the trained ones first. An attack keeps the trained
+  share it launched with, and survivors come home trained.
+- **Home climate**: each base is at home in the climate most of its
+  surroundings have (`homeClimate`, radius `militaryBaseClimateRadius`).
+  Trained troops fighting on a tile of a home climate get
+  `homeClimateBonus` on top.
+
+The tunables are in `Config` under "Military Base". To give another
+building a training effect, count it in `trainingLevel`.
+
+## Climate zones
+
+`packages/engine-lib/src/game/Climate.ts` derives Temperate, Arid, Cold,
+Coastal and Highland from the map: elevation, distance to water, and
+latitude. Nothing is stored. The zones are cached per map until the terrain
+changes (`waterVersion`). `climateAt(map, tile)` works on both the engine
+and the client.
+
+## Entrenchment
+
+`GameImpl` stores the tick each tile was taken (`heldFor(tile)`, 16-tick
+resolution, saved in the game snapshot). `entrenchment(tile, owner)` rises
+from 0 to 1 over `entrenchTicks(baseLevels)`. In `attackLogic`, the
+defender's strength goes from `entrenchFresh()` on fresh land to
+`entrenchMax(baseLevels)` on dug-in land.
+
+## Fork combat inputs
+
+`AttackLogicInput` takes optional fork fields: `attackerTrained`,
+`defenderTrained`, `entrenchment`, `defenderBaseLevels`,
+`defenderHasAllySupport` and `attackerHasJointAttack`. They are applied by
+`EngineConfig.forkCombatModifiers`. A field that is left out multiplies by
+exactly 1, so older callers and tests are unaffected.
+
+`AttackExecution.buildTickCtx` computes the per-tick parts once per attack
+per tick. To add a new combat effect:
+
+1. Add the field.
+2. Fold it into `forkCombatModifiers`.
+3. Fill it in `AttackExecution.forkInputs`.
+
+## Alliances in war
+
+- **Ally support**: a tile next to land held by an ally of the defender is
+  harder to take.
+- **Joint attack**: attacking a player that one of your allies is also
+  attacking is cheaper and faster.
+- **Call to arms**: nations attack whoever is attacking their allies
+  (`AiAttackBehavior.defendAllies`) before saving up to their trigger ratio.
+  Human allies get an "ally under attack" message.
+- **Lent training**: see the training level above.
+
+## Map view modes
+
+`src/client/render/ViewMode.ts` lists the view modes. The picker
+(`hud/layers/ViewModePicker.ts`, under the top-right bar) and the V hotkey
+switch between them, and `controllers/ViewModeController.ts` applies them.
+
+To add an overlay mode:
+
+1. Add a value to `ViewMode`.
+2. Return true for it from `isOverlayMode`.
+3. Write a function that returns a `TileOverlay` (one palette index per
+   tile, 0 = transparent) in `render/ViewOverlayData.ts`.
+4. Push it from `ViewModeController.setMode`.
+5. Add `view_mode.<value>` to `en.json`.
+
+`TileOverlayPass` draws the overlay between territory and borders.

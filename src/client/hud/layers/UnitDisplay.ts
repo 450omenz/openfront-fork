@@ -27,6 +27,7 @@ import {
   portIcon,
   samLauncherIcon,
   civicCenterIcon,
+  militaryBaseIcon,
   tankIcon,
   warshipIcon,
 } from "../HotbarIcons";
@@ -43,6 +44,7 @@ export class UnitDisplay extends LitElement implements Controller {
   private _warships = 0;
   private _tanks = 0;
   private _civicCenters = 0;
+  private _militaryBases = 0;
   private _factories = 0;
   private _missileSilo = 0;
   private _port = 0;
@@ -135,6 +137,7 @@ export class UnitDisplay extends LitElement implements Controller {
     this._warships = player.totalUnitLevels(UnitType.Warship);
     this._tanks = player.totalUnitLevels(UnitType.Tank);
     this._civicCenters = player.totalUnitLevels(UnitType.CivicCenter);
+    this._militaryBases = player.totalUnitLevels(UnitType.MilitaryBase);
     this.requestUpdate();
   }
 
@@ -175,6 +178,13 @@ export class UnitDisplay extends LitElement implements Controller {
             UnitType.CivicCenter,
             "civic_center",
             this.keybinds["buildCivicCenter"]?.key ?? "J",
+          )}
+          ${this.renderUnitItem(
+            militaryBaseIcon,
+            this._militaryBases,
+            UnitType.MilitaryBase,
+            "military_base",
+            this.keybinds["buildMilitaryBase"]?.key ?? "O",
           )}
           ${this.renderUnitItem(
             portIcon,

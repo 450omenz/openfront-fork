@@ -72,6 +72,10 @@ export interface PlayerState {
   trainGold: number;
   /** Cumulative piracy revenue: captured-ship payouts (live). */
   piracyGold: number;
+  /** Fork (Military Base). Optional: replays recorded before it lack them. */
+  trainedPermille?: number;
+  trainingLevel10?: number;
+  homeClimates?: number;
   /** Cumulative gold received from all sources (live). */
   goldEarned: number;
   troops: number;

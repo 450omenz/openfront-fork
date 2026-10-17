@@ -1,4 +1,5 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
+import { CycleViewModeEvent } from "./ViewModeEvents";
 import {
   PlayerBuildableUnitType,
   PlayerID,
@@ -528,6 +529,7 @@ export class InputHandler {
       "buildMIRV",
       "buildTank",
       "buildCivicCenter",
+      "buildMilitaryBase",
     ];
     buildKeybinds = buildKeybinds.map((i: string): string => {
       return this.keybinds[i];
@@ -772,6 +774,14 @@ export class InputHandler {
             this.alternateView = true;
             this.eventBus.emit(new AlternateViewEvent(true));
           }
+        }
+
+        if (
+          this.keybindMatchesEvent(e, this.keybinds.cycleViewMode) &&
+          !e.repeat
+        ) {
+          e.preventDefault();
+          this.eventBus.emit(new CycleViewModeEvent());
         }
 
         if (
@@ -1484,6 +1494,7 @@ export class InputHandler {
       { key: "buildMIRV", type: UnitType.MIRV },
       { key: "buildTank", type: UnitType.Tank },
       { key: "buildCivicCenter", type: UnitType.CivicCenter },
+      { key: "buildMilitaryBase", type: UnitType.MilitaryBase },
     ];
     for (const { key, type } of buildKeybinds) {
       if (this.keybindMatchesEvent({ code, shiftKey }, this.keybinds[key]))

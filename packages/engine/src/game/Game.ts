@@ -115,6 +115,8 @@ export interface UnitParamsMap {
 
   [UnitType.CivicCenter]: Record<string, never>;
 
+  [UnitType.MilitaryBase]: Record<string, never>;
+
   [UnitType.Tank]: {
     // Where the tank drives after rolling out of its factory.
     targetTile?: TileRef;
@@ -397,6 +399,14 @@ export interface Player extends PlayerLike {
   setTroops(troops: number): void;
   addTroops(troops: number): void;
   removeTroops(troops: number): number;
+  // Fork: trained troops (Military Base), a part of troops().
+  trainedTroops(): number;
+  trainedShare(): number;
+  /** Adds troops that are all trained (an attack coming home). */
+  addTrainedTroops(troops: number): void;
+  /** Trains up to `troops` more of the existing army. */
+  trainTroops(troops: number): void;
+  setTrainedTroops(troops: number): void;
 
   // Units
   // Fixed-arity + array overloads instead of a rest parameter: the rest array
@@ -568,6 +578,10 @@ export interface Game extends GameLike {
 
   // Game State
   ticks(): Tick;
+  // Fork (entrenchment): ticks since the tile's owner took it, and how dug
+  // in that owner is there (0..1).
+  heldFor(tile: TileRef): number;
+  entrenchment(tile: TileRef, owner: Player): number;
   inSpawnPhase(): boolean;
   endSpawnPhase(): void;
   executeNextTick(): GameUpdates;

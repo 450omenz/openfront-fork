@@ -18,6 +18,7 @@ import type { GhostPreviewData, RendererConfig, UnitState } from "../../types";
 import {
   UT_CITY,
   UT_CIVIC_CENTER,
+  UT_MILITARY_BASE,
   UT_DEFENSE_POST,
   UT_FACTORY,
   UT_MISSILE_SILO,
@@ -55,6 +56,7 @@ const STRUCTURE_ORDER = [
   UT_SAM_LAUNCHER,
   UT_MISSILE_SILO,
   UT_CIVIC_CENTER, // fork: col 6 of icon-atlas.png
+  UT_MILITARY_BASE, // fork: col 7 of icon-atlas.png
 ] as const;
 
 const ATLAS_COLS = STRUCTURE_ORDER.length;

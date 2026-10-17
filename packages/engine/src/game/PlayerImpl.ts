@@ -1,4 +1,5 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
+import { trainingView } from "./Military";
 import {
   AllianceInfo,
   AllPlayers,
@@ -140,6 +141,8 @@ export class PlayerImpl implements Player {
 
   private _gold: bigint;
   private _troops: bigint;
+  // Fork: how many of _troops are trained (Military Base). Always <= _troops.
+  private _trainedTroops: bigint = 0n;
 
   /** Cumulative ship-trade revenue (arrival credit for src + dst port owners). */
   private _tradeGold: bigint = 0n;
@@ -398,6 +401,8 @@ export class PlayerImpl implements Player {
       piracyGold: this._piracyGold,
       goldEarned: this._goldEarned,
       troops: this.troops(),
+      trainedPermille: Math.floor(this.trainedShare() * 1000),
+      ...trainingView(this),
       allies: allies,
       embargoes: embargoes,
       isTraitor: this.isTraitor(),
@@ -700,6 +705,7 @@ export class PlayerImpl implements Player {
   }
   setTroops(troops: number) {
     this._troops = toInt(troops);
+    if (this._trainedTroops > this._troops) this._trainedTroops = this._troops;
   }
   conquer(tile: TileRef) {
     this.mg.conquer(this, tile);
@@ -1385,8 +1391,35 @@ export class PlayerImpl implements Player {
       return 0;
     }
     const toRemove = minInt(this._troops, toInt(troops));
+    // Trained troops leave in proportion, so the trained share stays put.
+    if (this._trainedTroops > 0n && this._troops > 0n) {
+      this._trainedTroops -= (this._trainedTroops * toRemove) / this._troops;
+    }
     this._troops -= toRemove;
+    if (this._trainedTroops > this._troops) this._trainedTroops = this._troops;
     return Number(toRemove);
+  }
+
+  trainedTroops(): number {
+    return Number(this._trainedTroops);
+  }
+  trainedShare(): number {
+    if (this._troops <= 0n) return 0;
+    return Number(this._trainedTroops) / Number(this._troops);
+  }
+  addTrainedTroops(troops: number): void {
+    if (troops <= 0) return;
+    this._troops += toInt(troops);
+    this._trainedTroops += toInt(troops);
+  }
+  trainTroops(troops: number): void {
+    if (troops <= 0) return;
+    const next = this._trainedTroops + toInt(troops);
+    this._trainedTroops = next > this._troops ? this._troops : next;
+  }
+  setTrainedTroops(troops: number): void {
+    const t = toInt(Math.max(0, troops));
+    this._trainedTroops = t > this._troops ? this._troops : t;
   }
 
   captureUnit(unit: Unit): void {
@@ -1626,6 +1659,7 @@ export class PlayerImpl implements Player {
       case UnitType.City:
       case UnitType.Factory:
       case UnitType.CivicCenter:
+      case UnitType.MilitaryBase:
         return this.landBasedStructureSpawn(targetTile, validTiles);
       default:
         assertNever(unitType);
@@ -2001,6 +2035,7 @@ export class PlayerImpl implements Player {
       random: w.random(this._pseudo_random),
       gold: this._gold,
       troops: this._troops,
+      trainedTroops: this._trainedTroops,
       tradeGold: this._tradeGold,
       trainGold: this._trainGold,
       piracyGold: this._piracyGold,
@@ -2073,6 +2108,7 @@ export class PlayerImpl implements Player {
     this._pseudo_random = r.random(s.random);
     this._gold = s.gold;
     this._troops = s.troops;
+    this._trainedTroops = s.trainedTroops;
     this._tradeGold = s.tradeGold;
     this._trainGold = s.trainGold;
     this._piracyGold = s.piracyGold;
@@ -2138,7 +2174,11 @@ export class PlayerImpl implements Player {
 
 export const PlayerSnapshot = snapshotType({
   name: "Player",
-  version: 1,
+  version: 2,
+  migrations: {
+    // Fork: trained troops (Military Base).
+    1: (d) => ({ ...d, trainedTroops: 0n }),
+  },
   schema: z.object({
     smallID: zInt(),
     info: PlayerInfoSchema,
@@ -2148,6 +2188,7 @@ export const PlayerSnapshot = snapshotType({
     random: zRandom(),
     gold: z.bigint(),
     troops: z.bigint(),
+    trainedTroops: z.bigint(),
     tradeGold: z.bigint(),
     trainGold: z.bigint(),
     piracyGold: z.bigint(),

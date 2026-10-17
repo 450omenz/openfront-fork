@@ -1,4 +1,6 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
+import { climateAt } from "@openfront/engine-lib/game/Climate";
+import { climateName } from "./ViewModePicker";
 import {
   PlayerProfile,
   PlayerType,
@@ -755,10 +757,28 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
       .config()
       .populationDensity()
       .relativeDensity(this.game, player, this.tile);
+    const climate = climateAt(this.game, this.tile);
+    const trained = player.trainedTroops();
     return html`<div class="text-xs font-mono text-gray-400 mt-0.5">
       ${translateText("player_panel.population_density", {
         value: rel.toFixed(1),
       })}
+      ${climate !== null
+        ? html`<div>
+            ${translateText("player_panel.climate", {
+              climate: climateName(climate),
+            })}
+          </div>`
+        : ""}
+      ${trained > 0
+        ? html`<div class="text-orange-300">
+            ${translateText("player_panel.trained", {
+              percent: Math.round(
+                (trained / Math.max(1, player.troops())) * 100,
+              ),
+            })}
+          </div>`
+        : ""}
     </div>`;
   }
 

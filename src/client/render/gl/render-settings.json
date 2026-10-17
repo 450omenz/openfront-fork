@@ -155,6 +155,10 @@
       "Civic Center": {
         "scale": 1.08,
         "iconFill": 0.85
+      },
+      "Military Base": {
+        "scale": 1.08,
+        "iconFill": 0.85
       }
     },
     "highlightOutlineWidth": 0.04,

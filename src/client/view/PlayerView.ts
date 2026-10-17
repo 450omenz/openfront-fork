@@ -2,6 +2,7 @@ import { ClientID } from "@openfront/engine-api/Schemas";
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   BuildableUnit,
+  Climate,
   Cell,
   EmojiMessage,
   Gold,
@@ -476,6 +477,23 @@ export class PlayerView implements PlayerLike {
 
   troops(): number {
     return this.state.troops;
+  }
+
+  // Fork (Military Base): trained troops are a part of troops().
+  trainedTroops(): number {
+    return Math.floor(
+      (this.state.troops * (this.state.trainedPermille ?? 0)) / 1000,
+    );
+  }
+  trainingLevel(): number {
+    return (this.state.trainingLevel10 ?? 0) / 10;
+  }
+  homeClimates(): Climate[] {
+    const out: Climate[] = [];
+    for (let c = 0; c < 8; c++) {
+      if ((this.state.homeClimates ?? 0) & (1 << c)) out.push(c as Climate);
+    }
+    return out;
   }
 
   totalUnitLevels(type: UnitType): number {

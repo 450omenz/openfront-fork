@@ -47,6 +47,7 @@ import { SettingsModal } from "./layers/SettingsModal";
 import { SpawnTimer } from "./layers/SpawnTimer";
 import { TutorialPanel } from "./layers/TutorialPanel";
 import { UnitDisplay } from "./layers/UnitDisplay";
+import { ViewModePicker } from "./layers/ViewModePicker";
 import { WinModal } from "./layers/WinModal";
 import { loadAllSprites } from "./SpriteLoader";
 
@@ -227,6 +228,15 @@ export function createRenderer(
   // they ever open settings.
   migrateLegacyGraphicsSettings(userSettings);
 
+  const viewModePicker = document.querySelector(
+    "view-mode-picker",
+  ) as ViewModePicker;
+  if (!(viewModePicker instanceof ViewModePicker)) {
+    console.error("view mode picker not found");
+  }
+  viewModePicker.eventBus = eventBus;
+  viewModePicker.view = view;
+
   const unitDisplay = document.querySelector("unit-display") as UnitDisplay;
   if (!(unitDisplay instanceof UnitDisplay)) {
     console.error("unit display not found");
@@ -332,7 +342,8 @@ export function createRenderer(
     new HoverHighlightController(game, eventBus, transformHandler, view),
     new LiveStatsController(game, eventBus),
     new StructureHighlightController(eventBus, view),
-    new ViewModeController(eventBus, view),
+    viewModePicker,
+    new ViewModeController(eventBus, view, game, userSettings),
     new AttackingTroopsController(game, eventBus, userSettings, view),
     new SoundEffectController(game, eventBus),
     new AmbienceController(game, eventBus, transformHandler),

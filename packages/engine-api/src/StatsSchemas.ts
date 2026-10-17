@@ -38,6 +38,7 @@ export const otherUnits = [
   "fact",
   "tank",
   "civc",
+  "milb",
 ] as const;
 export const OtherUnitSchema = z.enum(otherUnits);
 export type OtherUnit = z.infer<typeof OtherUnitSchema>;
@@ -50,7 +51,8 @@ export type OtherUnitType =
   | UnitType.Warship
   | UnitType.Factory
   | UnitType.Tank
-  | UnitType.CivicCenter;
+  | UnitType.CivicCenter
+  | UnitType.MilitaryBase;
 
 export const unitTypeToOtherUnit = {
   [UnitType.City]: "city",
@@ -62,6 +64,7 @@ export const unitTypeToOtherUnit = {
   [UnitType.Factory]: "fact",
   [UnitType.Tank]: "tank",
   [UnitType.CivicCenter]: "civc",
+  [UnitType.MilitaryBase]: "milb",
 } as const satisfies Record<OtherUnitType, OtherUnit>;
 
 // Attacks

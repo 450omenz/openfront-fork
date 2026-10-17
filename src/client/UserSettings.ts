@@ -21,6 +21,7 @@ export function getDefaultKeybinds(isMac: boolean): Record<string, string> {
   return {
     toggleView: "Space",
     coordinateGrid: "KeyM",
+    cycleViewMode: "KeyV",
     buildCity: "Digit1",
     buildFactory: "Digit2",
     buildPort: "Digit3",
@@ -33,6 +34,7 @@ export function getDefaultKeybinds(isMac: boolean): Record<string, string> {
     buildMIRV: "Digit0",
     buildTank: "KeyH",
     buildCivicCenter: "KeyJ",
+    buildMilitaryBase: "KeyO",
     attackRatioDown: "KeyT",
     attackRatioUp: "KeyY",
     boatAttack: "KeyB",

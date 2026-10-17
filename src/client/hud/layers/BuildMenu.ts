@@ -39,6 +39,7 @@ const samlauncherIcon = assetUrl("images/SamLauncherIconWhite.svg");
 const shieldIcon = assetUrl("images/ShieldIconWhite.svg");
 const tankIcon = assetUrl("images/TankIconWhite.svg");
 const civicCenterIcon = assetUrl("images/CivicCenterIconWhite.svg");
+const militaryBaseIcon = assetUrl("images/MilitaryBaseIconWhite.svg");
 
 export interface BuildItemDisplay {
   unitType: PlayerBuildableUnitType;
@@ -132,6 +133,13 @@ export const buildTable: BuildItemDisplay[][] = [
       icon: civicCenterIcon,
       description: "build_menu.desc.civic_center",
       key: "unit_type.civic_center",
+      countable: true,
+    },
+    {
+      unitType: UnitType.MilitaryBase,
+      icon: militaryBaseIcon,
+      description: "build_menu.desc.military_base",
+      key: "unit_type.military_base",
       countable: true,
     },
   ],

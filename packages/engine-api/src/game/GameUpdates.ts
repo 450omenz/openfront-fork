@@ -262,6 +262,12 @@ export interface PlayerUpdate {
   /** Cumulative gold received from all sources (workers, trade, ...). */
   goldEarned?: Gold;
   troops?: number;
+  /** Fork: trained share of troops, in permille (Military Base). */
+  trainedPermille?: number;
+  /** Fork: training level x10 (own bases plus lent ally levels). */
+  trainingLevel10?: number;
+  /** Fork: bitmask of Climate values the player's bases are at home in. */
+  homeClimates?: number;
   allies?: number[];
   embargoes?: Set<PlayerID>;
   isTraitor?: boolean;

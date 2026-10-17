@@ -24,6 +24,7 @@ import type {
   Team,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
+import { TerrainType } from "@openfront/engine-api/game/GameTypes";
 import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
 import type { Config } from "@openfront/engine-lib/configuration/Config";
 import { OWNER_MASK } from "../render/gl/utils/TileCodec";
@@ -226,6 +227,12 @@ export class ReplayPlayerView {
   }
   troops(): number {
     return this.state?.troops ?? 0;
+  }
+  // Fork (Military Base).
+  trainedTroops(): number {
+    const st = this.state;
+    if (st === undefined) return 0;
+    return Math.floor((st.troops * (st.trainedPermille ?? 0)) / 1000);
   }
   betrayals(): number {
     return this.state?.betrayals ?? 0;
@@ -500,6 +507,23 @@ export class ReplayGameView {
   isLand(ref: TileRef): boolean {
     // GameMapImpl.IS_LAND_BIT.
     return (this.terrain[ref] & (1 << 7)) !== 0;
+  }
+  // Fork: what climateMap (engine-lib/game/Climate.ts) reads. Replay terrain
+  // is fixed, so its version never changes.
+  waterVersion(): number {
+    return 0;
+  }
+  isImpassable(ref: TileRef): boolean {
+    // GameMapImpl.MAGNITUDE_MASK / IMPASSABLE_MAGNITUDE.
+    return this.isLand(ref) && (this.terrain[ref] & 0x1f) === 31;
+  }
+  terrainType(ref: TileRef): TerrainType {
+    if (!this.isLand(ref)) return TerrainType.Ocean;
+    const m = this.terrain[ref] & 0x1f;
+    if (m >= 31) return TerrainType.Impassable;
+    if (m < 10) return TerrainType.Plains;
+    if (m < 20) return TerrainType.Highland;
+    return TerrainType.Mountain;
   }
   /** The player owning a tile, or a TerraNullius stand-in. */
   owner(ref: TileRef): ReplayPlayerView | { isPlayer(): boolean } {

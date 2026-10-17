@@ -89,6 +89,7 @@ describe("PlayerInfoOverlay", () => {
     cosmetics: {},
     id: () => "bob",
     smallID: () => 2,
+    trainedTroops: () => 0,
   };
 
   const makeGame = (myPlayer: unknown) => ({
@@ -103,6 +104,12 @@ describe("PlayerInfoOverlay", () => {
       populationDensity: () => ({ relativeDensity: () => 1 }),
     }),
     teamClanTag: () => undefined,
+    // Climate lookup (fork): a one-tile water map, so no climate line.
+    waterVersion: () => 0,
+    width: () => 1,
+    height: () => 1,
+    isLand: () => false,
+    isImpassable: () => false,
   });
 
   beforeEach(() => {

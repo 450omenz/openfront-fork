@@ -35,6 +35,7 @@ import { BarPass } from "./passes/BarPass";
 import { StatusIndicatorPass } from "./passes/StatusIndicatorPass";
 import { BorderComputePass } from "./passes/BorderComputePass";
 import { BorderStampPass } from "./passes/BorderStampPass";
+import { TileOverlayPass } from "./passes/TileOverlayPass";
 import { CoordinateGridPass } from "./passes/CoordinateGridPass";
 import { CrosshairPass } from "./passes/CrosshairPass";
 import { DefenseCoveragePass } from "./passes/DefenseCoveragePass";
@@ -104,6 +105,14 @@ const SAM_RADIUS_HIGHLIGHT_TYPES = new Set([
 ]);
 
 const GRID_VIEW_KEY = "renderer:grid_view_enabled";
+// Fork: the "Flat" view mode's terrain: one land tone, one water tone.
+const FLAT_TERRAIN = {
+  oceanColor: [52, 60, 78] as [number, number, number],
+  sandColor: [150, 150, 146] as [number, number, number],
+  plainsColor: [150, 170, 146] as [number, number, number],
+  highlandColor: [140, 140, 136] as [number, number, number],
+  mountainColor: [130, 130, 128] as [number, number, number],
+};
 
 export class GPURenderer {
   private gl: WebGL2RenderingContext;
@@ -149,6 +158,13 @@ export class GPURenderer {
   private heatManager: HeatManager;
   private affiliationPalette: AffiliationPalette;
   private coordinateGridPass: CoordinateGridPass;
+  private tileOverlayPass: TileOverlayPass;
+  // Fork view modes: kept on by the picker, on top of the space-hold / M-key
+  // toggles (altView / gridView), which keep working as before.
+  private altViewHeld = false;
+  private altViewMode = false;
+  private gridViewMode = false;
+  private flatTerrain = false;
   private spawnOverlayPass: SpawnOverlayPass;
   private smallPlayerGlowPass: SmallPlayerGlowPass;
   private inSpawnPhase = false;
@@ -646,6 +662,7 @@ export class GPURenderer {
       mapH,
       this.settings,
     );
+    this.tileOverlayPass = new TileOverlayPass(gl, mapW, mapH, this.settings);
     try {
       this.gridView = window.localStorage.getItem(GRID_VIEW_KEY) === "true";
     } catch {
@@ -1026,6 +1043,10 @@ export class GPURenderer {
    * settings change needs this explicit rebuild.
    */
   rebuildTerrain(): void {
+    if (this.flatTerrain) {
+      this.terrainPass.setTerrainColors(FLAT_TERRAIN);
+      return;
+    }
     this.terrainPass.setTerrainColors({
       backgroundColor:
         hexToRgb(this.settings.terrain.backgroundColor) ?? undefined,
@@ -1163,6 +1184,48 @@ export class GPURenderer {
   }
 
   setAltView(active: boolean): void {
+    this.altViewHeld = active;
+    this.applyAltView();
+  }
+
+  /**
+   * Fork view modes (see ../ViewMode.ts). `terrain` keeps the alt view on,
+   * `grid` the coordinate grid, `flat` swaps terrain colors for two flat
+   * tones. Overlay modes are pushed separately through setTileOverlay.
+   */
+  setViewModeFlags(flags: {
+    terrain: boolean;
+    grid: boolean;
+    flat: boolean;
+  }): void {
+    this.altViewMode = flags.terrain;
+    this.gridViewMode = flags.grid;
+    this.applyAltView();
+    if (flags.flat !== this.flatTerrain) {
+      this.flatTerrain = flags.flat;
+      this.rebuildTerrain();
+    }
+  }
+
+  /** Per-tile overlay (density / climate); null hides it. */
+  setTileOverlay(
+    overlay: {
+      indices: Uint8Array;
+      palette: Uint8Array;
+      opacity: number;
+    } | null,
+  ): void {
+    if (overlay === null) this.tileOverlayPass.clear();
+    else
+      this.tileOverlayPass.set(
+        overlay.indices,
+        overlay.palette,
+        overlay.opacity,
+      );
+  }
+
+  private applyAltView(): void {
+    const active = this.altViewHeld || this.altViewMode;
     this.altView = active;
     this.territoryPass.setAltView(active);
     this.borderStampPass.setAltView(active);
@@ -1360,6 +1423,7 @@ export class GPURenderer {
       layerPass.draw(cam);
     }
     if (pe.territory) this.territoryPass.draw(cam);
+    this.tileOverlayPass.draw(cam);
   }
 
   private renderOverlays(cam: Float32Array, zoom: number): void {
@@ -1401,7 +1465,8 @@ export class GPURenderer {
 
     // Grid shows on either trigger; names hide only under alt-view (space
     // hold), not under the persistent M-key gridView toggle.
-    if (this.gridView || this.altView) this.coordinateGridPass.draw(cam, zoom);
+    if (this.gridView || this.gridViewMode || this.altView)
+      this.coordinateGridPass.draw(cam, zoom);
     if (pe.name && !this.altView)
       this.namePass.draw(cam, this.nightCompositePass.getAmbient());
 
@@ -1510,6 +1575,7 @@ export class GPURenderer {
     this.heatManager.dispose();
     this.affiliationPalette.dispose();
     this.coordinateGridPass.dispose();
+    this.tileOverlayPass.dispose();
     this.spawnOverlayPass.dispose();
     this.smallPlayerGlowPass.dispose();
     this.railroadPass.dispose();

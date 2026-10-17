@@ -1,5 +1,10 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
-import { GameMode, GameType, Gold } from "@openfront/engine-api/game/GameTypes";
+import {
+  Climate,
+  GameMode,
+  GameType,
+  Gold,
+} from "@openfront/engine-api/game/GameTypes";
 import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
 import { ClientID } from "@openfront/engine-api/Schemas";
 import { Config } from "@openfront/engine-lib/configuration/Config";
@@ -16,6 +21,7 @@ import { USER_SETTINGS_CHANGED_EVENT, UserSettings } from "../../UserSettings";
 import { getGamesPlayed, translateText } from "../../Utils";
 import { GameView } from "../../view";
 import { PlayerView } from "../../view/PlayerView";
+import { climateName } from "./ViewModePicker";
 import { goldCoinIcon, soldierIcon } from "../HotbarIcons";
 import { TutorialHighlight, TutorialHighlightEvent } from "../Tutorial";
 const swordIcon = assetUrl("images/SwordIcon.svg");
@@ -38,6 +44,12 @@ export class ControlPanel extends LitElement implements Controller {
 
   @state()
   private _troops: number;
+
+  // Fork (Military Base): trained part of _troops, and what drives it.
+  @state()
+  private _trainedTroops = 0;
+  private _trainingLevel = 0;
+  private _homeClimates: Climate[] = [];
 
   @state()
   private _isVisible = false;
@@ -130,6 +142,9 @@ export class ControlPanel extends LitElement implements Controller {
     this._maxTroops = config.maxTroops(player);
     this._gold = player.gold();
     this._troops = player.troops();
+    this._trainedTroops = player.trainedTroops();
+    this._trainingLevel = player.trainingLevel();
+    this._homeClimates = player.homeClimates();
     this._attackingTroops = player
       .outgoingAttacks()
       .map((a) => a.troops)
@@ -356,7 +371,11 @@ export class ControlPanel extends LitElement implements Controller {
     (e.target as HTMLInputElement).blur();
   }
 
-  private calculateTroopBar(): { greenPercent: number; orangePercent: number } {
+  private calculateTroopBar(): {
+    greenPercent: number;
+    orangePercent: number;
+    trainedPercent: number;
+  } {
     const base = Math.max(this._maxTroops, 1);
     const greenPercentRaw = (this._troops / base) * 100;
     const orangePercentRaw = (this._attackingTroops / base) * 100;
@@ -367,20 +386,51 @@ export class ControlPanel extends LitElement implements Controller {
       Math.min(100 - greenPercent, orangePercentRaw),
     );
 
-    return { greenPercent, orangePercent };
+    // Fork: trained troops are a part of the blue (home) segment.
+    const trainedPercent = Math.max(
+      0,
+      Math.min(greenPercent, (this._trainedTroops / base) * 100),
+    );
+
+    return { greenPercent, orangePercent, trainedPercent };
+  }
+
+  // Fork: the orange "trained troops" segment, at the start of the blue one.
+  private renderTrainedSegment(trainedPercent: number) {
+    if (trainedPercent <= 0) return null;
+    return html`<div
+      class="absolute inset-y-0 left-0 w-full origin-left bg-orange-500 transition-transform duration-200 ease-out"
+      style="transform: scaleX(${trainedPercent / 100});"
+    ></div>`;
+  }
+
+  private trainedTooltip(): string {
+    if (this._trainingLevel <= 0 && this._trainedTroops <= 0) return "";
+    const climates =
+      this._homeClimates.length > 0
+        ? this._homeClimates.map((c) => climateName(c)).join(", ")
+        : translateText("control_panel.trained_no_home");
+    return translateText("control_panel.trained_tooltip", {
+      trained: renderTroops(this._trainedTroops),
+      level: this._trainingLevel.toFixed(1),
+      climates,
+    });
   }
 
   private renderMobileTroopBar() {
-    const { greenPercent, orangePercent } = this.calculateTroopBar();
+    const { greenPercent, orangePercent, trainedPercent } =
+      this.calculateTroopBar();
     return html`
       <div
         class="w-full h-6 border border-gray-600 rounded-md bg-gray-900/60 overflow-hidden relative"
+        title=${this.trainedTooltip()}
       >
         <div class="relative h-full">
           <div
             class="absolute inset-y-0 left-0 w-full origin-left bg-malibu-blue transition-transform duration-200 ease-out"
             style="transform: scaleX(${greenPercent / 100});"
           ></div>
+          ${this.renderTrainedSegment(trainedPercent)}
           <div
             class="absolute inset-y-0 left-0 w-full origin-left bg-aquarius transition-transform duration-200 ease-out"
             style="transform: translateX(${greenPercent}%) scaleX(${orangePercent /
@@ -429,16 +479,19 @@ export class ControlPanel extends LitElement implements Controller {
   }
 
   private renderDesktopTroopBar() {
-    const { greenPercent, orangePercent } = this.calculateTroopBar();
+    const { greenPercent, orangePercent, trainedPercent } =
+      this.calculateTroopBar();
     return html`
       <div
         class="w-full h-6 border border-gray-600 rounded-md bg-gray-900/60 overflow-hidden relative"
+        title=${this.trainedTooltip()}
       >
         <div class="relative h-full">
           <div
             class="absolute inset-y-0 left-0 w-full origin-left bg-malibu-blue transition-transform duration-200 ease-out"
             style="transform: scaleX(${greenPercent / 100});"
           ></div>
+          ${this.renderTrainedSegment(trainedPercent)}
           <div
             class="absolute inset-y-0 left-0 w-full origin-left bg-aquarius transition-transform duration-200 ease-out"
             style="transform: translateX(${greenPercent}%) scaleX(${orangePercent /

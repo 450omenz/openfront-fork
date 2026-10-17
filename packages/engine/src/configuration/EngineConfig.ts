@@ -20,6 +20,7 @@ import {
   within,
 } from "@openfront/engine-lib/Util";
 import type { EngineUnitInfo, Game, Player, Unit } from "../game/Game";
+import type { TrainedInput } from "../game/Military";
 
 export interface AttackLogicInput {
   terrain: TerrainType;
@@ -45,6 +46,20 @@ export interface AttackLogicInput {
   defenderHasDefensePost: boolean;
   /** A tank owned by the attacker is in aura range of the tile (fork). */
   attackerHasTankSupport?: boolean;
+  /** Fork: trained troops (Military Base) on each side. Omitted = none. */
+  attackerTrained?: TrainedInput;
+  defenderTrained?: TrainedInput;
+  /**
+   * Fork: how dug in the defender is on this tile, 0 (just taken) to 1
+   * (held for entrenchTicks). Omitted = no entrenchment effect.
+   */
+  entrenchment?: number;
+  /** Military Base levels of the defender, for entrenchMax. */
+  defenderBaseLevels?: number;
+  /** Fork: the tile borders land of one of the defender's allies. */
+  defenderHasAllySupport?: boolean;
+  /** Fork: an ally of the attacker is attacking the same defender. */
+  attackerHasJointAttack?: boolean;
   /** Fraction of land tiles with fallout, or null if the tile has no fallout. */
   falloutRatio: number | null;
   /** Tiles on the attack front this tick (plus jitter); fixed for the tick. */
@@ -431,6 +446,12 @@ export class EngineConfig extends Config {
             Math.min(1_000_000, 250_000 + numUnits * 125_000),
           UnitType.CivicCenter,
         );
+      case UnitType.MilitaryBase:
+        return this.costWrapper(
+          (numUnits: number) =>
+            Math.min(1_500_000, 400_000 + numUnits * 200_000),
+          UnitType.MilitaryBase,
+        );
       case UnitType.DefensePost:
         return this.costWrapper(
           (numUnits: number) => Math.min(250_000, (numUnits + 1) * 50_000),
@@ -603,6 +624,11 @@ export class EngineConfig extends Config {
       mag *= fallout;
       tileCost *= fallout;
     }
+    if (defender !== null) {
+      const m = this.forkCombatModifiers(input);
+      mag *= m.mag;
+      tileCost *= m.tileCost;
+    }
 
     if (defender === null) {
       const tickBudget = input.borderSize * 2;
@@ -688,6 +714,51 @@ export class EngineConfig extends Config {
           traitorCostMod) /
         input.borderSize,
     };
+  }
+
+  /**
+   * Fork: Military Base training, entrenchment and alliance effects, as
+   * multipliers on mag (attacker losses) and tileCost (slowness). Every
+   * input left out multiplies by exactly 1.
+   */
+  forkCombatModifiers(input: AttackLogicInput): {
+    mag: number;
+    tileCost: number;
+  } {
+    let mag = 1;
+    let tileCost = 1;
+    const trainedFactor = (t: TrainedInput | undefined): number => {
+      if (t === undefined || t.share <= 0 || t.level <= 0) return 1;
+      const home = t.homeMatch ? 1 + this.homeClimateBonus() : 1;
+      return 1 + t.share * this.trainedBonus(t.level) * home;
+    };
+    const atk = trainedFactor(input.attackerTrained);
+    if (atk !== 1) {
+      mag /= atk;
+      tileCost /= 1 + (atk - 1) / 2;
+    }
+    const def = trainedFactor(input.defenderTrained);
+    if (def !== 1) {
+      mag *= def;
+      tileCost *= 1 + (def - 1) / 2;
+    }
+    if (input.entrenchment !== undefined) {
+      const fresh = this.entrenchFresh();
+      const max = this.entrenchMax(input.defenderBaseLevels ?? 0);
+      const e = within(input.entrenchment, 0, 1);
+      const f = fresh + (max - fresh) * e;
+      mag *= f;
+      tileCost *= f;
+    }
+    if (input.defenderHasAllySupport) {
+      mag *= this.allySupportDefenseBonus();
+      tileCost *= this.allySupportSpeedBonus();
+    }
+    if (input.attackerHasJointAttack) {
+      mag /= this.jointAttackBonus();
+      tileCost /= this.jointAttackSpeedBonus();
+    }
+    return { mag, tileCost };
   }
 
   boatAttackAmount(

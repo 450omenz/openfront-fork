@@ -63,6 +63,9 @@ export function diffPlayerUpdate(
     prev.betrayals === next.betrayals &&
     prev.lastDeleteUnitTick === next.lastDeleteUnitTick &&
     prev.isLobbyCreator === next.isLobbyCreator &&
+    prev.trainedPermille === next.trainedPermille &&
+    prev.trainingLevel10 === next.trainingLevel10 &&
+    prev.homeClimates === next.homeClimates &&
     numberArrayEqual(prev.allies, next.allies) &&
     numberArrayEqual(prev.targets, next.targets) &&
     stringArrayEqual(
@@ -130,6 +133,15 @@ export function diffPlayerUpdate(
     prev.lastDeleteUnitTick === next.lastDeleteUnitTick,
   );
   setIfDifferent("isLobbyCreator", prev.isLobbyCreator === next.isLobbyCreator);
+  setIfDifferent(
+    "trainedPermille",
+    prev.trainedPermille === next.trainedPermille,
+  );
+  setIfDifferent(
+    "trainingLevel10",
+    prev.trainingLevel10 === next.trainingLevel10,
+  );
+  setIfDifferent("homeClimates", prev.homeClimates === next.homeClimates);
   setIfDifferent("allies", numberArrayEqual(prev.allies, next.allies));
   setIfDifferent("targets", numberArrayEqual(prev.targets, next.targets));
   setIfDifferent(

@@ -211,6 +211,89 @@ export class Config {
     );
   }
 
+  // --- Military Base (fork) ---
+  // Gold charged per base level every militaryBaseUpkeepInterval ticks.
+  militaryBaseUpkeep(): number {
+    return 2_500;
+  }
+  militaryBaseUpkeepInterval(): Tick {
+    return 5 * 10;
+  }
+  // Only this many working base levels count.
+  militaryBaseMaxCounted(): number {
+    return 5;
+  }
+  workingMilitaryBases(player: PlayerLike): number {
+    return this.workingLevels(
+      player,
+      UnitType.MilitaryBase,
+      this.militaryBaseMaxCounted(),
+    );
+  }
+  // Tiles around a base that decide its home climate.
+  militaryBaseClimateRadius(): number {
+    return 20;
+  }
+  // Share of an allied neighbor's training levels that counts for us.
+  allyTrainingShare(): number {
+    return 0.5;
+  }
+  // Share of all troops trained per tick, per training level.
+  trainRatePerLevel(): number {
+    return 0.0005;
+  }
+  // Highest share of the army that can be trained, per level, and overall.
+  trainedCapPerLevel(): number {
+    return 0.15;
+  }
+  trainedCapMax(): number {
+    return 0.75;
+  }
+  // Highest share of the army that can be trained at this training level.
+  trainedCap(level: number): number {
+    return Math.min(this.trainedCapMax(), level * this.trainedCapPerLevel());
+  }
+  // Strength of a fully trained army (share 1) at this level: 0.5 means its
+  // attacks cost a third less (1 / 1.5) and its land costs 1.5x to take.
+  // Diminishing: the first level does the most.
+  trainedBonus(level: number): number {
+    if (level <= 0) return 0;
+    return Math.min(0.8, 0.3 + 0.1 * (level - 1));
+  }
+  // Extra trained bonus when fighting on the base's home climate.
+  homeClimateBonus(): number {
+    return 0.5;
+  }
+
+  // --- Entrenchment (fork) ---
+  // Ticks for freshly taken land to become fully entrenched.
+  entrenchTicks(baseLevels: number): Tick {
+    return Math.max(200, 600 - baseLevels * 80);
+  }
+  // Defense multiplier on fresh land, rising to entrenchMax once dug in.
+  entrenchFresh(): number {
+    return 0.85;
+  }
+  entrenchMax(baseLevels: number): number {
+    return Math.min(1.5, 1.25 + 0.05 * baseLevels);
+  }
+
+  // --- Alliances in war (fork) ---
+  // Land bordering an ally of the defender is harder to take.
+  allySupportDefenseBonus(): number {
+    return 1.2;
+  }
+  allySupportSpeedBonus(): number {
+    return 1.15;
+  }
+  // Attacking someone an ally is also attacking is cheaper and faster.
+  jointAttackBonus(): number {
+    return 1.2;
+  }
+  jointAttackSpeedBonus(): number {
+    return 1.15;
+  }
+
   // Fork: summed levels of a player's working structures of one type, capped.
   // Working = finished, active, and paid up (no NoFunds status). A structure
   // stacked to level 3 counts as 3. Use this for any stackable building whose
@@ -237,6 +320,7 @@ export class Config {
     return {
       [UnitType.City]: { peak: 6, radius: 20 },
       [UnitType.CivicCenter]: { peak: 3, radius: 15 },
+      [UnitType.MilitaryBase]: { peak: 2, radius: 12 },
       [UnitType.Port]: { peak: 2, radius: 15 },
       [UnitType.Factory]: { peak: 1.5, radius: 12 },
     };
@@ -298,6 +382,7 @@ export class Config {
         info = { maxHealth: 700 };
         break;
       case UnitType.CivicCenter:
+      case UnitType.MilitaryBase:
         info = {
           constructionDuration: this.instantBuild() ? 0 : 5 * 10,
           upgradable: true,

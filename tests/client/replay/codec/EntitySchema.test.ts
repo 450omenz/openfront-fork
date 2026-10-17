@@ -63,6 +63,9 @@ const basePlayer: PlayerState = {
   outgoingAllianceRequests: [],
   alliances: [],
   outgoingEmojis: [],
+  trainedPermille: 0,
+  trainingLevel10: 0,
+  homeClimates: 0,
 };
 
 const playerAlternatives: { [K in keyof PlayerFields]: PlayerFields[K] } = {
@@ -115,6 +118,9 @@ const playerAlternatives: { [K in keyof PlayerFields]: PlayerFields[K] } = {
     { message: "🤝", senderID: 7, recipientID: "AllPlayers", createdAt: 55 },
     { message: "💀", senderID: 7, recipientID: 3, createdAt: 56 },
   ],
+  trainedPermille: 150,
+  trainingLevel10: 25,
+  homeClimates: 0b10010,
 };
 
 const baseUnit: UnitState = {

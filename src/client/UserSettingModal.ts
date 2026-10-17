@@ -1240,6 +1240,16 @@ export class UserSettingModal extends BaseModal {
       ></setting-keybind>
 
       <setting-keybind
+        action="cycleViewMode"
+        label=${translateText("user_setting.cycle_view_mode")}
+        description=${translateText("user_setting.cycle_view_mode_desc")}
+        defaultKey=${this.defaultKeybinds.cycleViewMode}
+        .value=${this.getKeyValue("cycleViewMode")}
+        .display=${this.getKeyChar("cycleViewMode")}
+        @change=${this.handleKeybindChange}
+      ></setting-keybind>
+
+      <setting-keybind
         action="coordinateGrid"
         label=${translateText("user_setting.coordinate_grid_label")}
         description=${translateText("user_setting.coordinate_grid_desc")}
@@ -1365,6 +1375,16 @@ export class UserSettingModal extends BaseModal {
         defaultKey=${this.defaultKeybinds.buildCivicCenter}
         .value=${this.getKeyValue("buildCivicCenter")}
         .display=${this.getKeyChar("buildCivicCenter")}
+        @change=${this.handleKeybindChange}
+      ></setting-keybind>
+
+      <setting-keybind
+        action="buildMilitaryBase"
+        label=${translateText("user_setting.build_military_base")}
+        description=${translateText("user_setting.build_military_base_desc")}
+        defaultKey=${this.defaultKeybinds.buildMilitaryBase}
+        .value=${this.getKeyValue("buildMilitaryBase")}
+        .display=${this.getKeyChar("buildMilitaryBase")}
         @change=${this.handleKeybindChange}
       ></setting-keybind>
 

@@ -39,6 +39,10 @@ export const UPKEEP_STRUCTURES: Partial<Record<UnitType, UpkeepSpec>> = {
     goldPerLevel: (c) => c.civicCenterUpkeep(),
     interval: (c) => c.civicCenterUpkeepInterval(),
   },
+  [UnitType.MilitaryBase]: {
+    goldPerLevel: (c) => c.militaryBaseUpkeep(),
+    interval: (c) => c.militaryBaseUpkeepInterval(),
+  },
 };
 
 export function hasUpkeep(type: UnitType): boolean {

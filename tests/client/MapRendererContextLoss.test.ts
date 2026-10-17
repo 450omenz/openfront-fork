@@ -24,6 +24,8 @@ vi.mock("../../src/client/render/gl/Renderer", () => ({
     setLayerVisible() {}
     setLayerAlpha() {}
     setLayerDestroyedMask() {}
+    setViewModeFlags() {}
+    setTileOverlay() {}
   },
 }));
 

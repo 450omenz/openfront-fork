@@ -146,6 +146,8 @@ export class MapRenderer {
         this.renderer?.setLayerDestroyedMask(id, mask);
       }
     }
+    this.renderer?.setViewModeFlags(this.viewModeFlags);
+    this.renderer?.setTileOverlay(this.tileOverlay);
     this.onContextRestored?.();
   };
 
@@ -392,6 +394,38 @@ export class MapRenderer {
   }
   setGridView(active: boolean): void {
     this.renderer?.setGridView(active);
+  }
+  // Fork view modes. Stored so a restored WebGL context gets them back.
+  private viewModeFlags = { terrain: false, grid: false, flat: false };
+  private tileOverlay: {
+    indices: Uint8Array;
+    palette: Uint8Array;
+    opacity: number;
+  } | null = null;
+  /** Fork: the map's image layers (empty until their images load). */
+  mapLayers(): readonly MapLayer[] {
+    return this.storedLayers;
+  }
+  isLayerVisible(layerId: string): boolean {
+    return this.layerVisibility.get(layerId) ?? true;
+  }
+  setViewModeFlags(flags: {
+    terrain: boolean;
+    grid: boolean;
+    flat: boolean;
+  }): void {
+    this.viewModeFlags = { ...flags };
+    this.renderer?.setViewModeFlags(flags);
+  }
+  setTileOverlay(
+    overlay: {
+      indices: Uint8Array;
+      palette: Uint8Array;
+      opacity: number;
+    } | null,
+  ): void {
+    this.tileOverlay = overlay;
+    this.renderer?.setTileOverlay(overlay);
   }
   setHighlightOwner(ownerID: number): void {
     this.renderer?.setHighlightOwner(ownerID);

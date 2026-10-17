@@ -172,6 +172,7 @@ export class ConstructionExecution implements Execution {
         this.mg.addExecution(new FactoryExecution(this.structure!));
         break;
       case UnitType.CivicCenter:
+      case UnitType.MilitaryBase:
         this.mg.addExecution(new UpkeepStructureExecution(this.structure!));
         break;
       default:
@@ -191,6 +192,7 @@ export class ConstructionExecution implements Execution {
       case UnitType.City:
       case UnitType.Factory:
       case UnitType.CivicCenter:
+      case UnitType.MilitaryBase:
         return true;
       default:
         return false;

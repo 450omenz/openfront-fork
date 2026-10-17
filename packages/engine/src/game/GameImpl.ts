@@ -51,6 +51,7 @@ import {
   zInt,
   zPlayerRef,
   zRef,
+  zU16Array,
 } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { simpleHash } from "@openfront/engine-lib/Util";
 import { z } from "zod";
@@ -118,6 +119,8 @@ export function createGame(
 
 export type CellString = string;
 
+const HELD_SHIFT = 4;
+
 export class GameImpl implements Game {
   private _ticks = 0;
   private startTick: number | null = null;
@@ -166,6 +169,9 @@ export class GameImpl implements Game {
   private _teamGameSpawnAreas: TeamGameSpawnAreas | undefined;
   /** Tiles from nuke blast radii this tick, drained by the renderer. */
   private _nukeImpactQueue: TileRef[] = [];
+  // Fork (entrenchment): per tile, (tick >> HELD_SHIFT) when its owner took
+  // it, wrapping at 16 bits. 0 on land never conquered.
+  private _heldSince: Uint16Array;
 
   constructor(
     private _humans: PlayerInfo[],
@@ -185,6 +191,7 @@ export class GameImpl implements Game {
     this._terraNullius = new TerraNulliusImpl();
     this._width = _map.width();
     this._height = _map.height();
+    this._heldSince = new Uint16Array(this._width * this._height);
     this.unitGrid = new UnitGrid<Unit>(this._map);
     this._waterManager = new WaterManager(
       this._map,
@@ -827,6 +834,7 @@ export class GameImpl implements Game {
     }
     this._territoryVersion++;
     this._map.setOwnerID(tile, owner.smallID());
+    this._heldSince[tile] = (this._ticks >> HELD_SHIFT) & 0xffff;
     owner._tiles.add(tile);
     owner._lastTileChange = this._ticks;
     owner._tileChangeVersion++;
@@ -1182,6 +1190,21 @@ export class GameImpl implements Game {
   // anything Player.nearby() can observe — so per-player answers can be memoised
   // for as long as nothing on the map moved.
   private _territoryVersion = 0;
+
+  // Fork: ticks since the tile's owner took it (16-tick resolution; wraps
+  // after ~29 hours of game time, far past any entrenchment window).
+  heldFor(tile: TileRef): number {
+    const now = (this._ticks >> HELD_SHIFT) & 0xffff;
+    return ((now - this._heldSince[tile]) & 0xffff) << HELD_SHIFT;
+  }
+
+  // Fork: 0 (just taken) to 1 (dug in) for the tile's current owner.
+  entrenchment(tile: TileRef, owner: Player): number {
+    const full = this._config.entrenchTicks(
+      this._config.workingMilitaryBases(owner),
+    );
+    return Math.min(1, this.heldFor(tile) / full);
+  }
   territoryVersion(): number {
     return this._territoryVersion;
   }
@@ -1478,6 +1501,7 @@ export class GameImpl implements Game {
             : { player: w.player(this._winner) },
       unitsVersion: this._unitsVersion,
       territoryVersion: this._territoryVersion,
+      heldSince: this._heldSince.slice(),
       shipStaggers: { ...this.shipStaggers },
       nationMirvTargets: [...this._nationMirvTargets],
       mirvsLaunched: this._mirvsLaunched,
@@ -1534,6 +1558,10 @@ export class GameImpl implements Game {
           : r.player(s.winner.player);
     this._unitsVersion = s.unitsVersion;
     this._territoryVersion = s.territoryVersion;
+    this._heldSince =
+      s.heldSince === null
+        ? new Uint16Array(this._width * this._height)
+        : s.heldSince.slice();
     this.shipStaggers = { ...s.shipStaggers };
     this._nationMirvTargets = new Map(s.nationMirvTargets);
     this._mirvsLaunched = s.mirvsLaunched;
@@ -1639,7 +1667,11 @@ export class GameImpl implements Game {
 
 export const GameSnapshot = snapshotType({
   name: "Game",
-  version: 1,
+  version: 2,
+  migrations: {
+    // Fork: entrenchment. Old games count all land as long held.
+    1: (d) => ({ ...d, heldSince: null }),
+  },
   schema: z.object({
     ticks: zInt(),
     startTick: zInt().nullable(),
@@ -1666,6 +1698,7 @@ export const GameSnapshot = snapshotType({
       .nullable(),
     unitsVersion: zInt(),
     territoryVersion: zInt(),
+    heldSince: zU16Array().nullable(),
     shipStaggers: z.object({ tradeShip: zInt(), transportShip: zInt() }),
     nationMirvTargets: z.array(z.tuple([z.string(), zInt()])),
     mirvsLaunched: zInt(),

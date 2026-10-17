@@ -210,6 +210,7 @@ export enum UnitType {
   // Fork. Appended: UnitType is positional on the wire.
   Tank = "Tank",
   CivicCenter = "Civic Center",
+  MilitaryBase = "Military Base",
 }
 
 // Fork: per-unit status bits, set by executions and drawn by the client's
@@ -252,6 +253,7 @@ export const Structures = unitTypeGroup([
   UnitType.Port,
   UnitType.Factory,
   UnitType.CivicCenter,
+  UnitType.MilitaryBase,
 ] as const);
 
 export const BuildMenus = unitTypeGroup([
@@ -315,6 +317,16 @@ export enum TerrainType {
   Mountain,
   Ocean,
   Impassable,
+}
+
+// Fork: climate zones derived from the map (engine-lib/game/Climate.ts).
+// Values index arrays and palettes, so only append.
+export enum Climate {
+  Temperate,
+  Arid,
+  Cold,
+  Coastal,
+  Highland,
 }
 
 export enum PlayerType {

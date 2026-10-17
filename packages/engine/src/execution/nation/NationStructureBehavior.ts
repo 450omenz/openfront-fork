@@ -83,8 +83,20 @@ function getStructureRatios(
       ratioPerCity: 0.2,
       perceivedCostIncreasePerOwned: 1,
     },
+    // Fork: Easy nations never build Military Bases.
+    ...(difficulty === Difficulty.Easy
+      ? {}
+      : {
+          [UnitType.MilitaryBase]: {
+            ratioPerCity: MILITARY_BASE_RATIO,
+            perceivedCostIncreasePerOwned: 1,
+          },
+        }),
   };
 }
+
+/** Fork: Military Base levels per city, on Medium and up. */
+const MILITARY_BASE_RATIO = 0.25;
 
 /** Perceived cost increase percentage per city owned */
 const CITY_PERCEIVED_COST_INCREASE_PER_OWNED = 1;
@@ -671,6 +683,7 @@ export class NationStructureBehavior {
     const buildOrder: UnitType[] = [
       UnitType.Port,
       UnitType.Factory,
+      UnitType.MilitaryBase,
       UnitType.SAMLauncher,
       UnitType.MissileSilo,
     ];
@@ -706,7 +719,9 @@ export class NationStructureBehavior {
       }
 
       if (
-        this.shouldBuildStructure(structureType, cityCount, hasCoastalTiles)
+        this.shouldBuildStructure(structureType, cityCount, hasCoastalTiles) &&
+        // Fork: a Military Base only pays off with a land front to fight on.
+        (structureType !== UnitType.MilitaryBase || this.hasLandEnemyNeighbor())
       ) {
         if (this.maybeSpawnStructure(structureType)) {
           return true;
@@ -1218,6 +1233,8 @@ export class NationStructureBehavior {
         return this.portValue();
       case UnitType.SAMLauncher:
         return this.samLauncherValue();
+      case UnitType.MilitaryBase:
+        return this.militaryBaseValue();
       default:
         throw new Error(`Value function not implemented for ${type}`);
     }
@@ -1257,6 +1274,36 @@ export class NationStructureBehavior {
 
       return w;
     };
+  }
+
+  /**
+   * Fork: value function for Military Bases. Behind the border (where it
+   * survives) and spread out, so their home climates differ.
+   */
+  private militaryBaseValue(): (tile: TileRef) => number {
+    const game = this.game;
+    const borderTiles = this.player.borderTiles();
+    const otherUnits = this.player.units(UnitType.MilitaryBase);
+    const { borderSpacing, structureSpacing } = this.spacingConstants();
+    return (tile) => {
+      let w = Math.min(
+        nearestTileDistCapped(game, borderTiles, tile, borderSpacing),
+        borderSpacing,
+      );
+      const otherTiles: Set<TileRef> = new Set(otherUnits.map((u) => u.tile()));
+      otherTiles.delete(tile);
+      const d = nearestTileDist(game, otherTiles, tile);
+      if (d !== Infinity) w += Math.min(d, structureSpacing);
+      return w;
+    };
+  }
+
+  // Fork: borders a player we could be fighting (not an ally or teammate).
+  private hasLandEnemyNeighbor(): boolean {
+    for (const n of this.player.nearby()) {
+      if (n.isPlayer() && !this.player.isFriendly(n)) return true;
+    }
+    return false;
   }
 
   /**

@@ -24,6 +24,7 @@ import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
 import { AttackLogicInput } from "../configuration/EngineConfig";
 import { Attack, Execution, Game, Player, Unit } from "../game/Game";
+import { TrainingSnapshot } from "../game/Military";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
 import type {
   ExecRecord,
@@ -33,6 +34,25 @@ import type {
 import { FlatBinaryHeap } from "./utils/FlatBinaryHeap"; // adjust path if needed
 
 const malusForRetreat = 25;
+
+// Fork: per-player training state, memoized for the tick it was taken in.
+// Not on the player itself so it never shows up in snapshots.
+const trainingMemo = new WeakMap<
+  Player,
+  { tick: number; snap: TrainingSnapshot }
+>();
+function trainingFor(mg: Game, player: Player): TrainingSnapshot {
+  const hit = trainingMemo.get(player);
+  if (hit !== undefined && hit.tick === mg.ticks()) return hit.snap;
+  const snap = new TrainingSnapshot(mg, player);
+  trainingMemo.set(player, { tick: mg.ticks(), snap });
+  return snap;
+}
+
+// Fork (call to arms): last tick each human was told an ally is under
+// attack by a given attacker, so repeat clicks don't spam them.
+const CALL_TO_ARMS_COOLDOWN = 300;
+const callToArmsSent = new WeakMap<Player, Map<string, number>>();
 export class AttackExecution implements Execution {
   private active: boolean = true;
   private toConquer = new FlatBinaryHeap();
@@ -53,6 +73,16 @@ export class AttackExecution implements Execution {
   // Reusable neighbor buffers to avoid closures/allocation in hot loops.
   private nbuf: TileRef[] = [0, 0, 0, 0];
   private nbuf2: TileRef[] = [0, 0, 0, 0];
+  // Fork: share of this attack's troops that are trained, set at launch.
+  private trainedShare = 0;
+  // Fork: per-tick combat context, rebuilt at the start of every tick.
+  private tickCtx: {
+    attacker: TrainingSnapshot;
+    defender: TrainingSnapshot | null;
+    defenderBaseLevels: number;
+    jointAttack: boolean;
+    defenderAllies: Set<number>;
+  } | null = null;
 
   constructor(
     private startTroops: number | null = null,
@@ -128,6 +158,7 @@ export class AttackExecution implements Execution {
     this.startTroops ??= this.mg
       .config()
       .attackAmount(this._owner, this.target);
+    this.trainedShare = this._owner.trainedShare();
     if (this.removeTroops) {
       this.startTroops = Math.min(this._owner.troops(), this.startTroops);
       // Take the amount that was actually deducted, not the amount asked for.
@@ -196,6 +227,7 @@ export class AttackExecution implements Execution {
     this.mg.stats().attackMaxIncoming(this.target, this.attack.troops());
 
     if (!this.target.isPlayer()) return;
+    this.callAlliesToArms(this.target);
     const difficulty = this.mg.config().gameConfig().difficulty;
     // Hitting back at whoever just attacked us doesn't anger them, except on Easy
     if (
@@ -258,7 +290,10 @@ export class AttackExecution implements Execution {
     }
 
     const survivors = this.attack.troops() - deaths;
-    this._owner.addTroops(survivors);
+    // Fork: the trained part of the survivors comes home trained.
+    const trainedBack = Math.floor(survivors * this.trainedShare);
+    this._owner.addTroops(survivors - trainedBack);
+    this._owner.addTrainedTroops(trainedBack);
     this.attack.delete();
     this.active = false;
 
@@ -270,6 +305,15 @@ export class AttackExecution implements Execution {
   }
 
   tick(ticks: number) {
+    try {
+      this.tickInner();
+    } finally {
+      // Per-tick only: never carried between ticks (or into snapshots).
+      this.tickCtx = null;
+    }
+  }
+
+  private tickInner() {
     if (this.attack === null) {
       throw new Error("Attack not initialized");
     }
@@ -303,6 +347,7 @@ export class AttackExecution implements Execution {
     }
 
     const borderSize = this.attack.borderSize() + this.random.nextInt(0, 5);
+    this.tickCtx = this.buildTickCtx(targetPlayer);
     // Each tile consumes a fraction of the tick; conquer until it is spent.
     let tickBudget = 1;
 
@@ -370,6 +415,68 @@ export class AttackExecution implements Execution {
     return true;
   }
 
+  // Fork: combat context that holds for the whole tick.
+  private buildTickCtx(defender: Player | null) {
+    if (defender === null) return null;
+    const allies = new Set<number>();
+    for (const a of defender.allies()) {
+      if (a !== this._owner) allies.add(a.smallID());
+    }
+    let jointAttack = false;
+    for (const ally of this._owner.allies()) {
+      for (const a of ally.outgoingAttacks()) {
+        if (a.target() === defender) {
+          jointAttack = true;
+          break;
+        }
+      }
+      if (jointAttack) break;
+    }
+    return {
+      attacker: trainingFor(this.mg, this._owner),
+      defender: trainingFor(this.mg, defender),
+      defenderBaseLevels: this.mg.config().workingMilitaryBases(defender),
+      jointAttack,
+      defenderAllies: allies,
+    };
+  }
+
+  // Fork: does the tile touch land held by one of the defender's allies?
+  private allySupport(tile: TileRef): boolean {
+    const allies = this.tickCtx?.defenderAllies;
+    if (allies === undefined || allies.size === 0) return false;
+    const n = this.map.neighbors4(tile, this.nbuf2);
+    for (let i = 0; i < n; i++) {
+      if (allies.has(this.map.ownerID(this.nbuf2[i]))) return true;
+    }
+    return false;
+  }
+
+  // Fork: tell the defender's human allies they are needed, and why.
+  private callAlliesToArms(defender: Player) {
+    if (this._owner.type() === PlayerType.Bot) return;
+    const now = this.mg.ticks();
+    for (const ally of defender.allies()) {
+      if (ally === this._owner || ally.type() !== PlayerType.Human) continue;
+      let sent = callToArmsSent.get(ally);
+      if (sent === undefined) {
+        sent = new Map();
+        callToArmsSent.set(ally, sent);
+      }
+      const key = `${defender.id()}>${this._owner.id()}`;
+      const last = sent.get(key);
+      if (last !== undefined && now - last < CALL_TO_ARMS_COOLDOWN) continue;
+      sent.set(key, now);
+      this.mg.displayMessage(
+        "events_display.ally_under_attack",
+        MessageType.ATTACK_REQUEST,
+        ally.id(),
+        undefined,
+        { ally: defender.displayName(), attacker: this._owner.displayName() },
+      );
+    }
+  }
+
   // Fork: population density of this tile and of the defender's land.
   private density(
     defender: Player,
@@ -421,10 +528,32 @@ export class AttackExecution implements Execution {
             },
       defenderHasDefensePost,
       attackerHasTankSupport: defender !== null && this.tankSupport(tile),
+      ...this.forkInputs(defender, tile),
       falloutRatio: this.mg.hasFallout(tile)
         ? this.mg.numTilesWithFallout() / this.mg.numLandTiles()
         : null,
       borderSize,
+    };
+  }
+
+  // Fork: training, entrenchment and alliance inputs for one tile.
+  private forkInputs(
+    defender: Player | null,
+    tile: TileRef,
+  ): Partial<AttackLogicInput> {
+    const ctx = this.tickCtx;
+    if (defender === null || ctx === null) return {};
+    return {
+      attackerTrained: ctx.attacker.input(this.mg, this.trainedShare, tile),
+      defenderTrained: ctx.defender?.input(
+        this.mg,
+        defender.trainedShare(),
+        tile,
+      ),
+      entrenchment: this.mg.entrenchment(tile, defender),
+      defenderBaseLevels: ctx.defenderBaseLevels,
+      defenderHasAllySupport: this.allySupport(tile),
+      attackerHasJointAttack: ctx.jointAttack,
     };
   }
 
@@ -544,6 +673,7 @@ export class AttackExecution implements Execution {
       targetID: this._targetID,
       sourceTile: this.sourceTile,
       removeTroops: this.removeTroops,
+      trainedShare: this.trainedShare,
     });
   }
 
@@ -570,6 +700,9 @@ export class AttackExecution implements Execution {
     this._targetID = s.targetID;
     this.sourceTile = s.sourceTile;
     this.removeTroops = s.removeTroops;
+    this.trainedShare = s.trainedShare;
+    // Rebuilt at the start of every tick.
+    this.tickCtx = null;
   }
 }
 
@@ -594,12 +727,17 @@ const AttackExecutionStateSchema = z.object({
   targetID: z.string().nullable(),
   sourceTile: zTile().nullable(),
   removeTroops: z.boolean(),
+  trainedShare: zNum(),
 });
 type AttackExecutionState = z.infer<typeof AttackExecutionStateSchema>;
 
 export const AttackExecutionSnapshot = execSnapshotType({
   name: "Attack",
-  version: 1,
+  version: 2,
+  migrations: {
+    // Fork: trained troops (Military Base).
+    1: (d) => ({ ...d, trainedShare: 0 }),
+  },
   schema: AttackExecutionStateSchema,
   cls: () => AttackExecution,
 });

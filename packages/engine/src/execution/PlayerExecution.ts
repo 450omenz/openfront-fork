@@ -1,3 +1,4 @@
+import { trainTick } from "../game/Military";
 import { GameMap, TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   Cell,
@@ -126,6 +127,7 @@ export class PlayerExecution implements Execution {
 
     const troopInc = this.config.troopIncreaseRate(this.player);
     this.player.addTroops(troopInc);
+    trainTick(this.mg, this.player, ticks);
     const goldFromWorkers = this.config.goldAdditionRate(this.player);
     this.player.addGold(goldFromWorkers);
 

@@ -417,6 +417,15 @@ export class AiAttackBehavior {
     // Medium: answer attacks without saving up to the trigger ratio first
     if (difficulty === Difficulty.Medium && this.retaliate()) return;
 
+    // Fork (call to arms): an ally under attack is answered before saving up
+    // to the trigger ratio. Easy only answers some of the time.
+    if (
+      (difficulty !== Difficulty.Easy || this.random.chance(3)) &&
+      this.defendAllies()
+    ) {
+      return;
+    }
+
     // Maybe save up troops until we reach the trigger ratio
     if (!this.hasTriggerRatioTroops() && !this.random.chance(10)) return;
 
@@ -879,6 +888,33 @@ export class AiAttackBehavior {
       default:
         assertNever(difficulty);
     }
+  }
+
+  // Fork (call to arms): attack whoever is attacking one of our allies. No
+  // relation gate or cost: an alliance means showing up when it counts.
+  private defendAllies(): boolean {
+    if (this.game.config().disableAlliances()) return false;
+    for (const ally of this.player.allies()) {
+      const attackers = ally
+        .incomingAttacks()
+        .map((a) => a.attacker())
+        .sort((a, b) => a.troops() - b.troops());
+      for (const attacker of attackers) {
+        if (attacker === this.player || this.player.isFriendly(attacker)) {
+          continue;
+        }
+        if (
+          this.player.outgoingAttacks().some((a) => a.target() === attacker)
+        ) {
+          continue;
+        }
+        if (!this.canReach(attacker)) continue;
+        if (!this.sendAttack(attacker)) continue;
+        this.emojiBehavior?.sendEmoji(ally, EMOJI_ASSIST_ACCEPT);
+        return true;
+      }
+    }
+    return false;
   }
 
   private assistAllies(): boolean {

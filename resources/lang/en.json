@@ -194,6 +194,7 @@
       "defense_post": "Increases defenses of nearby borders",
       "factory": "Creates railroads and spawns trains",
       "hydrogen_bomb": "Large explosion",
+      "military_base": "Trains part of your army: trained troops attack and defend harder, and even more so in the base's home climate. Stack bases to train more troops, faster, and to make your land dig in sooner and deeper. Allies next to you get half its training. Costs 2,500 gold every 5 seconds per level.",
       "mirv": "Huge explosion, only targets selected player",
       "missile_silo": "Used to launch nukes",
       "port": "Sends trade ships to generate gold",
@@ -548,6 +549,13 @@
     "transfer_warning": "This will make the selected member the new leader. You will become a regular member. This action cannot be undone.",
     "unban": "Unban"
   },
+  "climate": {
+    "arid": "Arid",
+    "coastal": "Coastal",
+    "cold": "Cold",
+    "highland": "Highland",
+    "temperate": "Temperate"
+  },
   "close_reason": {
     "account_lookup_failed": "Your account could not be looked up. Please try again.",
     "banned": "This account is banned.",
@@ -625,6 +633,8 @@
     "attack_ratio": "{percent}%\n({troops})",
     "low_troops_warning": "You are very low on troops - You should always keep some troops for defense.",
     "teammate_afk_neighbor_info": "You can attack disconnected teammates.",
+    "trained_no_home": "none",
+    "trained_tooltip": "Trained troops: {trained} (training level {level}). Home climates: {climates}.",
     "traitor_neighbor_info": "You can betray traitors without becoming a traitor yourself."
   },
   "cosmetics": {
@@ -871,6 +881,7 @@
     "alliance_renewed": "Your alliance with {name} has been renewed",
     "alliance_request_sent": "Alliance request sent to {name}.",
     "alliance_request_status": "{name} {status} your alliance request",
+    "ally_under_attack": "Your ally {ally} is under attack by {attacker}! Strike {attacker} together for a joint attack bonus.",
     "atom_bomb_detonated": "{name} - atom bomb detonated",
     "atom_bomb_inbound": "{name} - atom bomb inbound",
     "attack_cancelled_retreat": "Attack cancelled, {troops} soldiers killed during retreat",
@@ -1776,6 +1787,7 @@
     "betrayals": "Betrayals",
     "break_alliance": "Break Alliance",
     "chat": "Chat",
+    "climate": "Climate: {climate}",
     "cosmetic_get_label": "{name} (Get it in the store)",
     "cosmetics": "Equipped",
     "emotes": "Emojis",
@@ -1805,6 +1817,7 @@
     "stopped": "Stopped",
     "target": "Target",
     "trading": "Trading",
+    "trained": "Trained: {percent}% of troops",
     "traitor": "Traitor",
     "troops": "Troops"
   },
@@ -2510,6 +2523,7 @@
     "defense_post": "Defense Post",
     "factory": "Factory",
     "hydrogen_bomb": "Hydrogen Bomb",
+    "military_base": "Military Base",
     "mirv": "MIRV",
     "missile_silo": "Missile Silo",
     "port": "Port",
@@ -2580,6 +2594,8 @@
     "build_hydrogen_bomb_desc": "Build a Hydrogen Bomb under your cursor.",
     "build_menu_modifier": "Build Menu Modifier",
     "build_menu_modifier_desc": "Hold this key while clicking to open the build menu.",
+    "build_military_base": "Build Military Base",
+    "build_military_base_desc": "Build a Military Base under your cursor.",
     "build_mirv": "Build MIRV",
     "build_mirv_desc": "Build a MIRV under your cursor.",
     "build_missile_silo": "Build Missile Silo",
@@ -2599,6 +2615,8 @@
     "coordinate_grid_label": "Coordinate Grid",
     "cursor_cost_label_desc": "Show a cost pill under the build cursor icon",
     "cursor_cost_label_label": "Cursor Build Cost",
+    "cycle_view_mode": "Cycle Map View",
+    "cycle_view_mode_desc": "Step through the map views: normal, terrain, flat, grid, population density and climate.",
     "development_only": "Development Only",
     "display_f11_hint": "Press F11 at any time to switch between windowed and borderless.",
     "display_missing": "Remembered display not connected — using the primary display",
@@ -2753,6 +2771,19 @@
     "verified_use": "Use verified",
     "verified_use_custom": "Switch back to a custom name",
     "verified_use_hint": "Play under your verified account name"
+  },
+  "view_mode": {
+    "climate": "Climate",
+    "density": "Population density",
+    "density_desc": "People per tile. Attacks and nukes kill troops where they live.",
+    "density_sparse": "Sparse",
+    "flat": "Flat (no terrain)",
+    "grid": "Grid",
+    "hint": "Press V to cycle views (change it in Settings → Keybinds).",
+    "map_layers": "Map layers",
+    "normal": "Normal",
+    "terrain": "Terrain",
+    "title": "Map view"
   },
   "win_modal": {
     "died": "You died",

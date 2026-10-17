@@ -22,6 +22,7 @@ const BUILDING_ORDER = {
   silo: 5,
   saml: 6,
   civc: 7, // fork
+  milb: 8, // fork
 } as const satisfies Record<
   // "tank" (fork) is a unit, not a building.
   Exclude<(typeof otherUnits)[number], "wshp" | "tank">,
@@ -47,6 +48,7 @@ const UNIT_LABEL_KEYS = {
   wshp: "unit_type.warship",
   tank: "unit_type.tank",
   civc: "unit_type.civic_center",
+  milb: "unit_type.military_base",
   abomb: "unit_type.atom_bomb",
   hbomb: "unit_type.hydrogen_bomb",
   mirv: "unit_type.mirv",

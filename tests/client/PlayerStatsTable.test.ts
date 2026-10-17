@@ -168,9 +168,9 @@ describe("PlayerStatsTable", () => {
         text(candidate.querySelector("th")) === "player_stats_table.building",
     );
     expect(buildings, "buildings table should exist").toBeDefined();
-    // The seven structures (six upstream + the fork's Civic Center), with the
-    // warship row moved to its own section.
-    expect(buildings?.querySelectorAll("tbody tr")).toHaveLength(7);
+    // The eight structures (six upstream + the fork's Civic Center and
+    // Military Base), with the warship row moved to its own section.
+    expect(buildings?.querySelectorAll("tbody tr")).toHaveLength(8);
     expect(buildings?.textContent).not.toContain("unit_type.warship");
 
     expect(columnsOf(table, "player_stats_table.warship_stats")).toEqual({

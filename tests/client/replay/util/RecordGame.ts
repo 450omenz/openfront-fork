@@ -7,7 +7,7 @@
 
 import { GameUpdateViewData } from "@openfront/engine-api/game/GameUpdates";
 import { Executor } from "@openfront/engine/execution/ExecutionManager";
-import { Game } from "@openfront/engine/game/Game";
+import { Game, Player } from "@openfront/engine/game/Game";
 import { GameRunner } from "@openfront/engine/GameRunner";
 import { gunzipSync, gzipSync } from "zlib";
 import { ReplayReader } from "../../../../src/client/replay/codec/decode/ReplayReader";
@@ -190,6 +190,12 @@ export async function recordGame(
   };
 }
 
+function isTraitorAt(game: Game, p: Player, tick: number): boolean {
+  const marked = (p as unknown as { markedTraitorTick: number })
+    .markedTraitorTick;
+  return marked >= 0 && tick - 1 - marked < game.config().traitorDuration();
+}
+
 export function captureTruth(
   game: Game,
   tick: number,
@@ -203,7 +209,10 @@ export function captureTruth(
       troops: p.troops(),
       goldEarned: Number(p.goldEarned()),
       isAlive: p.isAlive(),
-      isTraitor: p.isTraitor(),
+      // A frame's updates are built while the engine runs tick `tick - 1`
+      // (gu.tick is reported after the counter moves on). isTraitor() reads
+      // the live counter, so evaluate it at the tick the update saw.
+      isTraitor: isTraitorAt(game, p, tick),
       betrayals: p.betrayals(),
       allies: p.allies().map((a) => a.smallID()),
     });

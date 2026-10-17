@@ -22,6 +22,11 @@ export function applyStateUpdate(target: PlayerState, pu: PlayerUpdate): void {
   if (pu.piracyGold !== undefined) target.piracyGold = Number(pu.piracyGold);
   if (pu.goldEarned !== undefined) target.goldEarned = Number(pu.goldEarned);
   if (pu.troops !== undefined) target.troops = pu.troops;
+  if (pu.trainedPermille !== undefined)
+    target.trainedPermille = pu.trainedPermille;
+  if (pu.trainingLevel10 !== undefined)
+    target.trainingLevel10 = pu.trainingLevel10;
+  if (pu.homeClimates !== undefined) target.homeClimates = pu.homeClimates;
   if (pu.isTraitor !== undefined) target.isTraitor = pu.isTraitor;
   if (pu.traitorRemainingTicks !== undefined) {
     target.traitorRemainingTicks = Math.max(0, pu.traitorRemainingTicks);
