@@ -48,6 +48,7 @@ describe("TrainStation", () => {
     player = {
       addGold: vi.fn(),
       addTrainGold: vi.fn(),
+      recordTrade: vi.fn(),
       id: 1,
       canTrade: vi.fn().mockReturnValue(true),
       isAlliedWith: vi.fn().mockReturnValue(false),
@@ -98,6 +99,7 @@ describe("TrainStation", () => {
     const stationOwner = {
       addGold: vi.fn(),
       addTrainGold: vi.fn(),
+      recordTrade: vi.fn(),
       id: 1,
       canTrade: vi.fn().mockReturnValue(true),
       isAlliedWith: vi.fn().mockReturnValue(false),
@@ -106,6 +108,7 @@ describe("TrainStation", () => {
     const trainOwner = {
       addGold: vi.fn(),
       addTrainGold: vi.fn(),
+      recordTrade: vi.fn(),
       id: 2,
       canTrade: vi.fn().mockReturnValue(true),
       isAlliedWith: vi.fn().mockReturnValue(false),

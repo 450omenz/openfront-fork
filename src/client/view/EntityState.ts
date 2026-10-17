@@ -150,6 +150,7 @@ export function playerStaticFromUpdate(pu: PlayerUpdate): PlayerStatic {
     playerType: gamePlayerTypeToEnum(pu.playerType!),
     team: pu.team ?? null,
     isLobbyCreator: pu.isLobbyCreator!,
+    ...(pu.archetype !== undefined ? { archetype: pu.archetype } : {}),
   };
 }
 

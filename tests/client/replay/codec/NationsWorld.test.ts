@@ -52,6 +52,9 @@ test("world map nations: trade ships and trains round-trip", async () => {
     false,
     nations,
   );
+  // A codec fixture, not an AI test: keep nations at the baseline so the
+  // trajectory this fixture was built around stays put.
+  game.config().nationPersonalities = () => false;
   for (const nation of nations) {
     game.addExecution(new NationExecution("game_id", nation));
   }

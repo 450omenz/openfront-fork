@@ -1,6 +1,7 @@
 import { AllPlayersStats, ClientID, Winner } from "../Schemas";
 import { TileRef } from "./GameMap";
 import {
+  Archetype,
   EmojiMessage,
   GameUpdates,
   Gold,
@@ -286,6 +287,8 @@ export interface PlayerUpdate {
   betrayals?: number;
   lastDeleteUnitTick?: Tick;
   isLobbyCreator?: boolean;
+  /** Fork: a nation's personality archetype; absent for everyone else. */
+  archetype?: Archetype;
 }
 
 export interface AllianceView {

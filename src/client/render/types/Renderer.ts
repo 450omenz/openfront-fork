@@ -25,6 +25,8 @@ export interface PlayerStatic {
   playerType: PlayerTypeEnum;
   team: string | null;
   isLobbyCreator: boolean;
+  /** Fork: a nation's personality archetype (Archetype value). */
+  archetype?: string;
   /** Resolved flag image URL, or undefined for no flag. */
   flag?: string;
   /** Resolved crown-cosmetic image URL, or undefined for no crown. */

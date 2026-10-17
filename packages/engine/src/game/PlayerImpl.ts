@@ -1,3 +1,4 @@
+import { archetypeOf } from "./NationPersonality";
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import { trainingView } from "./Military";
 import {
@@ -146,6 +147,8 @@ export class PlayerImpl implements Player {
 
   /** Cumulative ship-trade revenue (arrival credit for src + dst port owners). */
   private _tradeGold: bigint = 0n;
+  // Fork: recent gold earned with each trade partner, by smallID.
+  private tradeLedger = new Map<number, bigint>();
   /** Cumulative train revenue: own trains + others' trains stopping at own stations. */
   private _trainGold: bigint = 0n;
   /** Cumulative piracy revenue: payouts for captured trade ships. */
@@ -421,6 +424,7 @@ export class PlayerImpl implements Player {
       betrayals: this._betrayalCount,
       lastDeleteUnitTick: this.lastDeleteUnitTick,
       isLobbyCreator: this.isLobbyCreator(),
+      archetype: archetypeOf(this),
     };
   }
 
@@ -1328,6 +1332,30 @@ export class PlayerImpl implements Player {
     this._tradeGold += toAdd;
   }
 
+  recordTrade(partner: Player, gold: Gold): void {
+    if (partner === this || gold <= 0n) return;
+    const id = partner.smallID();
+    this.tradeLedger.set(id, (this.tradeLedger.get(id) ?? 0n) + gold);
+  }
+
+  tradeVolumeWith(partner: Player): Gold {
+    return this.tradeLedger.get(partner.smallID()) ?? 0n;
+  }
+
+  totalTradeVolume(): Gold {
+    let total = 0n;
+    for (const v of this.tradeLedger.values()) total += v;
+    return total;
+  }
+
+  decayTradeLedger(): void {
+    for (const [id, v] of this.tradeLedger) {
+      const half = v / 2n;
+      if (half === 0n) this.tradeLedger.delete(id);
+      else this.tradeLedger.set(id, half);
+    }
+  }
+
   trainGold(): Gold {
     return this._trainGold;
   }
@@ -2037,6 +2065,7 @@ export class PlayerImpl implements Player {
       troops: this._troops,
       trainedTroops: this._trainedTroops,
       tradeGold: this._tradeGold,
+      tradeLedger: [...this.tradeLedger],
       trainGold: this._trainGold,
       piracyGold: this._piracyGold,
       goldEarned: this._goldEarned,
@@ -2110,6 +2139,7 @@ export class PlayerImpl implements Player {
     this._troops = s.troops;
     this._trainedTroops = s.trainedTroops;
     this._tradeGold = s.tradeGold;
+    this.tradeLedger = new Map(s.tradeLedger);
     this._trainGold = s.trainGold;
     this._piracyGold = s.piracyGold;
     this._goldEarned = s.goldEarned;
@@ -2174,10 +2204,12 @@ export class PlayerImpl implements Player {
 
 export const PlayerSnapshot = snapshotType({
   name: "Player",
-  version: 2,
+  version: 3,
   migrations: {
     // Fork: trained troops (Military Base).
     1: (d) => ({ ...d, trainedTroops: 0n }),
+    // Fork: trade ledger.
+    2: (d) => ({ ...d, tradeLedger: [] }),
   },
   schema: z.object({
     smallID: zInt(),
@@ -2190,6 +2222,7 @@ export const PlayerSnapshot = snapshotType({
     troops: z.bigint(),
     trainedTroops: z.bigint(),
     tradeGold: z.bigint(),
+    tradeLedger: z.array(z.tuple([zInt(), z.bigint()])),
     trainGold: z.bigint(),
     piracyGold: z.bigint(),
     goldEarned: z.bigint(),

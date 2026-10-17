@@ -1,5 +1,6 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
+  Archetype,
   Difficulty,
   GameMode,
   Nation,
@@ -13,6 +14,7 @@ import { GameID } from "@openfront/engine-api/Schemas";
 import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
 import {
   VersionedSchema,
+  zInt,
   zNum,
   zPlayerRef,
   zRandom,
@@ -20,6 +22,14 @@ import {
 import { assertNever, simpleHash } from "@openfront/engine-lib/Util";
 import { z } from "zod";
 import { Execution, Game, Player } from "../game/Game";
+import {
+  NEUTRAL,
+  Personality,
+  rollPersonality,
+  scaled,
+  scaledInt,
+  setPersonality,
+} from "../game/NationPersonality";
 import {
   NationSchema,
   nationData,
@@ -37,6 +47,7 @@ import { NationEmojiBehavior } from "./nation/NationEmojiBehavior";
 import { NationMIRVBehavior } from "./nation/NationMIRVBehavior";
 import { NationNukeBehavior } from "./nation/NationNukeBehavior";
 import { NationStructureBehavior } from "./nation/NationStructureBehavior";
+import { NationTradeBehavior } from "./nation/NationTradeBehavior";
 import { NationWarshipBehavior } from "./nation/NationWarshipBehavior";
 import { SpawnExecution } from "./SpawnExecution";
 import { AiAttackBehavior } from "./utils/AiAttackBehavior";
@@ -53,6 +64,9 @@ export class NationExecution implements Execution {
   private warshipBehavior!: NationWarshipBehavior;
   private nukeBehavior!: NationNukeBehavior;
   private structureBehavior!: NationStructureBehavior;
+  private tradeBehavior!: NationTradeBehavior;
+  // Fork: rolled in init; null when personalities are off (baseline).
+  private personality: Personality | null = null;
   private mg: Game;
   private player: Player | null = null;
 
@@ -78,13 +92,29 @@ export class NationExecution implements Execution {
 
   init(mg: Game) {
     this.mg = mg;
-    this.attackRate = this.getAttackRate();
+    // Fork: personality. Its own PRNG; it only rescales the numbers below,
+    // so the main PRNG draws the same values in the same order.
+    if (mg.config().nationPersonalities()) {
+      this.personality = rollPersonality(
+        this.nation.playerInfo.id,
+        this.gameID,
+      );
+    }
+    const p = this.personality ?? NEUTRAL;
+    // Aggressive: attacks with fewer troops saved, decides more often.
+    // Cautious: keeps a bigger reserve.
+    this.triggerRatio = scaled(this.triggerRatio, p.aggression, -0.2);
+    this.reserveRatio = scaled(this.reserveRatio, p.caution, 0.2);
+    this.attackRate = scaledInt(this.getAttackRate(), p.aggression, -0.3, 10);
     this.attackTick = this.random.nextInt(0, this.attackRate);
 
     if (!this.mg.hasPlayer(this.nation.playerInfo.id)) {
       this.player = this.mg.addPlayer(this.nation.playerInfo);
     } else {
       this.player = this.mg.player(this.nation.playerInfo.id);
+    }
+    if (this.personality !== null) {
+      setPersonality(this.player, this.personality);
     }
   }
 
@@ -220,6 +250,7 @@ export class NationExecution implements Execution {
     this.updateRelationsFromEmbargos();
     this.allianceBehavior.handleAllianceRequests();
     this.allianceBehavior.handleAllianceExtensionRequests();
+    this.tradeBehavior.warmToPartners();
     this.mirvBehavior.considerMIRV();
     this.structureBehavior.handleStructures();
     this.warshipBehavior.maybeSpawnWarship();
@@ -278,6 +309,7 @@ export class NationExecution implements Execution {
       this.mg,
       this.player,
     );
+    this.tradeBehavior = new NationTradeBehavior(this.mg, this.player);
     this.behaviorsInitialized = true;
   }
 
@@ -359,18 +391,23 @@ export class NationExecution implements Execution {
         return;
       }
 
+      // Fork: a valuable trade partner is worth more than a grudge.
+      const partner = this.tradeBehavior.isValuedPartner(other);
+
       /* When player is hostile starts embargo. Do not stop until neutral again */
       if (
         player.relation(other) <= Relation.Hostile &&
         !player.hasEmbargoAgainst(other) &&
-        !player.isOnSameTeam(other)
+        !player.isOnSameTeam(other) &&
+        !partner
       ) {
         player.addEmbargo(other, false);
       } else if (
         player.relation(other) >= Relation.Neutral &&
         player.hasEmbargoAgainst(other) &&
-        difficulty !== Difficulty.Hard &&
-        difficulty !== Difficulty.Impossible
+        ((difficulty !== Difficulty.Hard &&
+          difficulty !== Difficulty.Impossible) ||
+          partner)
       ) {
         player.stopEmbargo(other);
       } else if (
@@ -408,6 +445,7 @@ export class NationExecution implements Execution {
       triggerRatio: this.triggerRatio,
       reserveRatio: this.reserveRatio,
       expandRatio: this.expandRatio,
+      personality: this.personality,
       embargoMalusApplied: [...this.embargoMalusApplied],
       spawnExecAdded: this.spawnExecAdded,
       behaviors: this.behaviorsInitialized
@@ -446,6 +484,10 @@ export class NationExecution implements Execution {
     this.triggerRatio = s.triggerRatio;
     this.reserveRatio = s.reserveRatio;
     this.expandRatio = s.expandRatio;
+    this.personality = s.personality;
+    if (this.player !== null && this.personality !== null) {
+      setPersonality(this.player, this.personality);
+    }
     this.embargoMalusApplied = new Set(s.embargoMalusApplied);
     this.spawnExecAdded = s.spawnExecAdded;
     this.behaviorsInitialized = s.behaviors !== null;
@@ -476,6 +518,7 @@ export class NationExecution implements Execution {
     );
     nuke.restoreSnapshot(b.nuke, r, random, player, attack, emoji);
     structure.restoreSnapshot(b.structure, r, random, player);
+    this.tradeBehavior = new NationTradeBehavior(r.game, player); // stateless
     this.emojiBehavior = emoji;
     this.mirvBehavior = mirv;
     this.allianceBehavior = alliance;
@@ -501,6 +544,17 @@ const NationStateSchema = z.object({
   triggerRatio: zNum(),
   reserveRatio: zNum(),
   expandRatio: zNum(),
+  /** Fork. Null for nations saved before personalities: baseline. */
+  personality: z
+    .object({
+      archetype: z.enum(Archetype),
+      aggression: zInt(),
+      loyalty: zInt(),
+      mercantilism: zInt(),
+      caution: zInt(),
+      ambition: zInt(),
+    })
+    .nullable(),
   embargoMalusApplied: z.array(z.string()),
   spawnExecAdded: z.boolean(),
   behaviors: z
@@ -519,7 +573,10 @@ type NationState = z.infer<typeof NationStateSchema>;
 
 export const NationExecutionSnapshot = execSnapshotType({
   name: "Nation",
-  version: 1,
+  version: 2,
+  migrations: {
+    1: (d) => ({ ...d, personality: null }),
+  },
   schema: NationStateSchema,
   cls: () => NationExecution,
 });

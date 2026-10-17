@@ -214,6 +214,8 @@ export class TradeShipExecution implements Execution {
       this._dstPort.owner().addGold(gold, this._dstPort.tile());
       this.srcPort.owner().addTradeGold(gold);
       this._dstPort.owner().addTradeGold(gold);
+      this.srcPort.owner().recordTrade(this._dstPort.owner(), gold);
+      this._dstPort.owner().recordTrade(this.srcPort.owner(), gold);
       // Record stats
       this.mg
         .stats()

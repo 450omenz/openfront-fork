@@ -1,3 +1,5 @@
+import { personalityOf, scaled } from "../../game/NationPersonality";
+import { isValuedPartner } from "./NationTradeBehavior";
 import {
   Difficulty,
   GameMode,
@@ -161,6 +163,10 @@ export class NationAllianceBehavior {
         this.emojiBehavior.sendEmoji(otherPlayer, EMOJI_CONFUSED);
       }
       return false;
+    }
+    // Fork: a valued trade partner is worth an alliance
+    if (isValuedPartner(this.game, this.player, otherPlayer)) {
+      return true;
     }
     // Maybe accept if relation is friendly
     if (this.isAlliancePartnerFriendly(otherPlayer)) {
@@ -417,13 +423,23 @@ export class NationAllianceBehavior {
     if (!this.player.isAlliedWith(otherPlayer)) return false;
 
     const { difficulty } = this.game.config().gameConfig();
+    // Fork: loyal nations need more of an edge to betray (disloyal less);
+    // the most loyal only ever turn on traitors.
+    const loyalty = personalityOf(this.player).loyalty;
+    const faithful = loyalty >= NEVER_BETRAY_LOYALTY;
 
     // Betray our juiciest ally (e.g. a MIRVed one), if it's safe to do so (everybody around us is weak)
     if (
       (difficulty === Difficulty.Hard ||
         difficulty === Difficulty.Impossible) &&
+      !faithful &&
       juiciestAlly === otherPlayer &&
-      this.isSafeToBetray(otherPlayer, borderingFriends, borderingEnemies)
+      this.isSafeToBetray(
+        otherPlayer,
+        borderingFriends,
+        borderingEnemies,
+        scaled(0.33, loyalty, -0.5),
+      )
     ) {
       this.betray(otherPlayer);
       return true;
@@ -433,12 +449,13 @@ export class NationAllianceBehavior {
     // This doesn't check for maxTroops and isn't really smart. It makes nations vulnerable, but that's intended.
     // On easy, don't betray humans
     if (
+      !faithful &&
       (difficulty === Difficulty.Easy || difficulty === Difficulty.Medium) &&
       !(
         difficulty === Difficulty.Easy &&
         otherPlayer.type() === PlayerType.Human
       ) &&
-      this.player.troops() >= otherPlayer.troops() * 10
+      this.player.troops() >= otherPlayer.troops() * scaled(10, loyalty, 0.5)
     ) {
       this.betray(otherPlayer);
       return true;
@@ -456,9 +473,10 @@ export class NationAllianceBehavior {
 
     // Betray our only bordering player if we are much stronger than them
     if (
+      !faithful &&
       difficulty !== Difficulty.Easy &&
       borderingFriends.length + borderingEnemies.length === 1 &&
-      otherPlayer.troops() * 3 < this.player.troops()
+      otherPlayer.troops() * scaled(3, loyalty, 0.5) < this.player.troops()
     ) {
       this.betray(otherPlayer);
       return true;
@@ -481,6 +499,7 @@ export class NationAllianceBehavior {
     target: Player,
     borderingFriends: Player[],
     borderingEnemies: Player[],
+    safetyShare: number,
   ): boolean {
     const otherAllies = target.isTraitor()
       ? []
@@ -494,7 +513,7 @@ export class NationAllianceBehavior {
         .reduce((s, attack) => s + attack.troops(), 0);
       return sum + threat.troops() + outgoing;
     }, 0);
-    return nearbyThreatTroops < this.player.troops() * 0.33;
+    return nearbyThreatTroops < this.player.troops() * safetyShare;
   }
 
   private betray(target: Player): void {
@@ -503,6 +522,9 @@ export class NationAllianceBehavior {
     this.player.breakAlliance(alliance);
   }
 }
+
+// Fork: loyalty at which a nation never betrays an ally (except traitors).
+const NEVER_BETRAY_LOYALTY = 85;
 
 export const NationAllianceBehaviorSnapshot = snapshotType({
   name: "NationAllianceBehavior",

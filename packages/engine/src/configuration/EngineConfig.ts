@@ -212,6 +212,16 @@ export class EngineConfig extends Config {
   tankManualHoldTicks(): number {
     return 30 * 10;
   }
+  // Fork: the per-partner trade ledger halves this often (one minute), so
+  // it reflects recent trade.
+  tradeLedgerDecayTicks(): number {
+    return 600;
+  }
+  // Fork: nations get personalities (NationPersonality). Off = every nation
+  // behaves like the baseline (all traits 50).
+  nationPersonalities(): boolean {
+    return true;
+  }
   // Auto-deployed tanks stage this many tiles behind the front line.
   tankStandoff(): number {
     return 4;

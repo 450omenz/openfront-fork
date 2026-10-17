@@ -538,9 +538,19 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
       case PlayerType.Bot:
         playerType = translateText("player_type.bot");
         break;
-      case PlayerType.Nation:
-        playerType = translateText("player_type.nation");
+      case PlayerType.Nation: {
+        // Fork: nations show their personality, e.g. "Nation · Merchant".
+        const archetype = player.archetype();
+        playerType =
+          archetype === undefined
+            ? translateText("player_type.nation")
+            : translateText("player_type.nation_archetype", {
+                archetype: translateText(
+                  `archetype.${archetype.toLowerCase()}`,
+                ),
+              });
         break;
+      }
       case PlayerType.Human:
         playerType = translateText("player_type.player");
         break;

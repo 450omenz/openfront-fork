@@ -384,6 +384,14 @@ export interface Player extends PlayerLike {
   // Mirrors StatsSchemas GOLD_INDEX_TRADE / GOLD_INDEX_TRAIN_* semantics.
   tradeGold(): Gold;
   addTradeGold(toAdd: Gold): void;
+  /**
+   * Fork: trade ledger. Gold earned trading with each partner (ships and
+   * trains), halved every tradeLedgerDecayTicks, so it tracks recent trade.
+   */
+  recordTrade(partner: Player, gold: Gold): void;
+  tradeVolumeWith(partner: Player): Gold;
+  totalTradeVolume(): Gold;
+  decayTradeLedger(): void;
   trainGold(): Gold;
   addTrainGold(toAdd: Gold): void;
 

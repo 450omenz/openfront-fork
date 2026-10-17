@@ -54,9 +54,16 @@ import {
   findRunawayLeader,
   hasHighStartingGold,
 } from "../nation/NationUtils";
+import { isProtectedPartner } from "../nation/NationTradeBehavior";
 import type { NationWarshipBehavior } from "../nation/NationWarshipBehavior";
+import { personalityOf } from "../../game/NationPersonality";
 import { TransportShipExecution } from "../TransportShipExecution";
 import { closestTwoTiles } from "../Util";
+
+// Fork: loyalty at which a nation helps allies it's merely neutral toward.
+const LOYAL_ASSIST = 70;
+// Fork: aggression/ambition at which strategies get pulled forward.
+const PULL_TRAIT = 75;
 
 // Reusable neighbor buffer for hot loops; the simulation is single-threaded.
 const NEIGHBOR_SCRATCH: TileRef[] = [0, 0, 0, 0];
@@ -545,8 +552,14 @@ export class AiAttackBehavior {
       return false;
     };
 
+    // Fork: valued trade partners are left alone by the opportunistic picks.
+    const notPartners = (enemies: Player[]) =>
+      enemies.filter((e) => !isProtectedPartner(this.game, this.player, e));
+
     const juicy = (): boolean => {
-      const target = pick((enemies) => this.findJuicyTarget(enemies));
+      const target = pick((enemies) =>
+        this.findJuicyTarget(notPartners(enemies)),
+      );
       return target !== null ? this.sendAttack(target) : false;
     };
 
@@ -555,6 +568,7 @@ export class AiAttackBehavior {
         if (relation.relation !== Relation.Hostile) continue;
         const other = relation.player;
         if (this.player.isFriendly(other)) continue;
+        if (isProtectedPartner(this.game, this.player, other)) continue;
         if (this.isFFA() && other.troops() > this.player.troops() * 3) continue;
         if (difficulty !== Difficulty.Easy && !this.canReach(other)) continue;
         return this.sendAttack(other);
@@ -575,7 +589,7 @@ export class AiAttackBehavior {
       // In FFA, don't attack if they have more troops than us
       const weakest = pick(
         (enemies) =>
-          enemies.find(
+          notPartners(enemies).find(
             (enemy) => !this.isFFA() || enemy.troops() < this.player.troops(),
           ) ?? null,
       );
@@ -603,6 +617,73 @@ export class AiAttackBehavior {
       );
     };
 
+    // Fork: personality pulls some strategies forward, right after assist:
+    // aggressive nations go for whoever they hate and the weakest, ambitious
+    // ones for the crown.
+    const p = personalityOf(this.player);
+    const pulled: Array<() => boolean> = [];
+    if (p.ambition >= PULL_TRAIT) pulled.push(crown);
+    if (p.aggression >= PULL_TRAIT) pulled.push(hated, weakest);
+    const base = this.baseStrategyOrder({
+      retaliate,
+      bots,
+      assist,
+      traitor,
+      afk,
+      betray,
+      nuked,
+      victim,
+      juicy,
+      hated,
+      veryWeak,
+      weakest,
+      island,
+      donate,
+      crown,
+    });
+    // Only strategies this difficulty uses at all (Easy has no crown).
+    const moved = pulled.filter((s) => base.includes(s));
+    if (moved.length === 0) return base;
+    const rest = base.filter((s) => !moved.includes(s));
+    const at = rest.indexOf(assist) + 1;
+    return [...rest.slice(0, at), ...moved, ...rest.slice(at)];
+  }
+
+  private baseStrategyOrder(s: {
+    retaliate: () => boolean;
+    bots: () => boolean;
+    assist: () => boolean;
+    traitor: () => boolean;
+    afk: () => boolean;
+    betray: () => boolean;
+    nuked: () => boolean;
+    victim: () => boolean;
+    juicy: () => boolean;
+    hated: () => boolean;
+    veryWeak: () => boolean;
+    weakest: () => boolean;
+    island: () => boolean;
+    donate: () => boolean;
+    crown: () => boolean;
+  }): Array<() => boolean> {
+    const { difficulty } = this.game.config().gameConfig();
+    const {
+      retaliate,
+      bots,
+      assist,
+      traitor,
+      afk,
+      betray,
+      nuked,
+      victim,
+      juicy,
+      hated,
+      veryWeak,
+      weakest,
+      island,
+      donate,
+      crown,
+    } = s;
     // Return strategies in order based on difficulty
     // Easy nations get the dumbest order, impossible nations get the smartest order
     // Medium and up retaliate in attackBestTarget, ahead of the ratio checks
@@ -924,7 +1005,12 @@ export class AiAttackBehavior {
 
     for (const ally of this.player.allies()) {
       if (ally.targets().length === 0) continue;
-      if (this.player.relation(ally) < Relation.Friendly) {
+      // Fork: loyal nations help any ally they don't distrust.
+      const needed =
+        personalityOf(this.player).loyalty >= LOYAL_ASSIST
+          ? Relation.Neutral
+          : Relation.Friendly;
+      if (this.player.relation(ally) < needed) {
         this.emojiBehavior.sendEmoji(ally, EMOJI_ASSIST_RELATION_TOO_LOW);
         continue;
       }

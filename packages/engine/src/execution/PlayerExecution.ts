@@ -87,6 +87,9 @@ export class PlayerExecution implements Execution {
 
   tick(ticks: number) {
     this.player.decayRelations();
+    if (ticks % this.config.tradeLedgerDecayTicks() === 0) {
+      this.player.decayTradeLedger();
+    }
     for (const u of this.player.units()) {
       if (!Structures.has(u.type())) {
         continue;

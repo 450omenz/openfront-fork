@@ -280,6 +280,17 @@ export enum Relation {
   Friendly = 3,
 }
 
+// Fork: a nation's personality archetype (see NationPersonality). Shown to
+// players; the traits behind it stay in the engine.
+export enum Archetype {
+  Balanced = "Balanced",
+  Warmonger = "Warmonger",
+  Merchant = "Merchant",
+  Diplomat = "Diplomat",
+  Opportunist = "Opportunist",
+  Turtle = "Turtle",
+}
+
 export class Nation {
   constructor(
     public readonly spawnCell: Cell | undefined,

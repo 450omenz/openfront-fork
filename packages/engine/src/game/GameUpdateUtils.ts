@@ -66,6 +66,7 @@ export function diffPlayerUpdate(
     prev.trainedPermille === next.trainedPermille &&
     prev.trainingLevel10 === next.trainingLevel10 &&
     prev.homeClimates === next.homeClimates &&
+    prev.archetype === next.archetype &&
     numberArrayEqual(prev.allies, next.allies) &&
     numberArrayEqual(prev.targets, next.targets) &&
     stringArrayEqual(
@@ -98,6 +99,7 @@ export function diffPlayerUpdate(
   setIfDifferent("name", prev.name === next.name);
   setIfDifferent("displayName", prev.displayName === next.displayName);
   setIfDifferent("clanTag", prev.clanTag === next.clanTag);
+  setIfDifferent("archetype", prev.archetype === next.archetype);
   setIfDifferent("nationFlag", prev.nationFlag === next.nationFlag);
   setIfDifferent("team", prev.team === next.team);
   setIfDifferent("smallID", prev.smallID === next.smallID);

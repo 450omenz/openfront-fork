@@ -604,6 +604,11 @@ export class PlayerView implements PlayerLike {
     return false;
   }
 
+  /** Fork: a nation's personality archetype, if it has one. */
+  archetype(): string | undefined {
+    return this.static.archetype;
+  }
+
   isTraitor(): boolean {
     return this.state.isTraitor;
   }

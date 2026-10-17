@@ -18,6 +18,12 @@ import {
 import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
 import { Attack, Game, Player, Unit } from "../../game/Game";
+import {
+  archetypeOf,
+  Personality,
+  personalityOf,
+  scaled,
+} from "../../game/NationPersonality";
 import { Cluster } from "../../game/TrainStation";
 import type {
   SnapshotReader,
@@ -63,20 +69,27 @@ const TEAM_PORT_RATIO = 1;
 function getStructureRatios(
   difficulty: Difficulty,
   gameMode: GameMode,
+  p: Readonly<Personality>,
 ): Partial<Record<UnitType, StructureRatioConfig>> {
   const teamPorts =
     gameMode === GameMode.Team && difficulty !== Difficulty.Easy;
+  // Fork: merchants build more trade, cautious nations more SAMs, and
+  // aggressive ones more Military Bases (±50% at the trait extremes).
   return {
     [UnitType.Port]: {
-      ratioPerCity: teamPorts ? TEAM_PORT_RATIO : 0.75,
+      ratioPerCity: scaled(
+        teamPorts ? TEAM_PORT_RATIO : 0.75,
+        p.mercantilism,
+        0.5,
+      ),
       perceivedCostIncreasePerOwned: 1,
     },
     [UnitType.Factory]: {
-      ratioPerCity: 0.75,
+      ratioPerCity: scaled(0.75, p.mercantilism, 0.5),
       perceivedCostIncreasePerOwned: 1,
     },
     [UnitType.SAMLauncher]: {
-      ratioPerCity: SAM_RATIO_BY_DIFFICULTY[difficulty],
+      ratioPerCity: scaled(SAM_RATIO_BY_DIFFICULTY[difficulty], p.caution, 0.5),
       perceivedCostIncreasePerOwned: 0.3,
     },
     [UnitType.MissileSilo]: {
@@ -88,12 +101,15 @@ function getStructureRatios(
       ? {}
       : {
           [UnitType.MilitaryBase]: {
-            ratioPerCity: MILITARY_BASE_RATIO,
+            ratioPerCity: scaled(MILITARY_BASE_RATIO, p.aggression, 0.5),
             perceivedCostIncreasePerOwned: 1,
           },
         }),
   };
 }
+
+/** Fork: lowest aggression at which a nation builds tanks. */
+const TANK_MIN_AGGRESSION = 40;
 
 /** Fork: Military Base levels per city, on Medium and up. */
 const MILITARY_BASE_RATIO = 0.25;
@@ -348,7 +364,7 @@ export class NationStructureBehavior {
 
     const incomingTroops = attacks.reduce((sum, a) => sum + a.troops(), 0);
     const ratio = incomingTroops / ourTroops;
-    if (ratio < UNDER_ATTACK_THREAT_RATIO) return false;
+    if (ratio < this.threatRatio()) return false;
 
     let allowed: number;
     if (difficulty === Difficulty.Medium) {
@@ -453,7 +469,16 @@ export class NationStructureBehavior {
     const ourTroops = this.player.troops();
     if (ourTroops <= 0) return false;
     const incomingTroops = attacks.reduce((sum, a) => sum + a.troops(), 0);
-    return incomingTroops / ourTroops >= UNDER_ATTACK_THREAT_RATIO;
+    return incomingTroops / ourTroops >= this.threatRatio();
+  }
+
+  // Fork: cautious nations dig in against smaller attacks.
+  private threatRatio(): number {
+    return scaled(
+      UNDER_ATTACK_THREAT_RATIO,
+      personalityOf(this.player).caution,
+      -0.4,
+    );
   }
 
   /**
@@ -729,10 +754,53 @@ export class NationStructureBehavior {
       }
     }
 
+    if (this.maybeBuildTank()) {
+      return true;
+    }
+
     if (!citiesDisabled && this.maybeSpawnStructure(UnitType.City)) {
       return true;
     }
 
+    return false;
+  }
+
+  /**
+   * Fork: aggressive nations with a land front field tanks from a factory;
+   * the tanks then deploy themselves (FrontAssigner). Cap grows with
+   * aggression: 1 tank at 40, up to 4 at 100. Not on Easy, and only with
+   * personalities on (the baseline nation never built tanks).
+   */
+  private maybeBuildTank(): boolean {
+    // Only nations with a personality (off = the baseline, which never
+    // built tanks).
+    if (archetypeOf(this.player) === undefined) return false;
+    const game = this.game;
+    const config = game.config();
+    if (
+      config.isUnitDisabled(UnitType.Tank) ||
+      config.gameConfig().difficulty === Difficulty.Easy
+    ) {
+      return false;
+    }
+    const aggression = personalityOf(this.player).aggression;
+    if (aggression < TANK_MIN_AGGRESSION) return false;
+    const cap = Math.max(1, Math.floor((aggression - 20) / 20));
+    if (this.player.units(UnitType.Tank).length >= cap) return false;
+    if (!this.hasLandEnemyNeighbor()) return false;
+    const cost = config.unitInfo(UnitType.Tank).cost(game, this.player);
+    // Keep a cushion: tanks are worth it only on top of the economy.
+    if (this.player.gold() < cost * 2n) return false;
+    for (const factory of this.player.units(UnitType.Factory)) {
+      if (!factory.isActive() || factory.isUnderConstruction()) continue;
+      if (this.player.canBuild(UnitType.Tank, factory.tile()) === false) {
+        continue;
+      }
+      game.addExecution(
+        new ConstructionExecution(this.player, UnitType.Tank, factory.tile()),
+      );
+      return true;
+    }
     return false;
   }
 
@@ -781,7 +849,11 @@ export class NationStructureBehavior {
   ): number {
     const gameConfig = this.game.config();
     const { difficulty, gameMode } = gameConfig.gameConfig();
-    const ratios = getStructureRatios(difficulty, gameMode);
+    const ratios = getStructureRatios(
+      difficulty,
+      gameMode,
+      personalityOf(this.player),
+    );
     const config = ratios[type];
     if (config === undefined) {
       return 0;
@@ -895,7 +967,11 @@ export class NationStructureBehavior {
     if (type === UnitType.City) {
       increasePerOwned = CITY_PERCEIVED_COST_INCREASE_PER_OWNED;
     } else {
-      const ratios = getStructureRatios(difficulty, gameMode);
+      const ratios = getStructureRatios(
+        difficulty,
+        gameMode,
+        personalityOf(this.player),
+      );
       const config = ratios[type];
       increasePerOwned = config?.perceivedCostIncreasePerOwned ?? 0.1;
     }

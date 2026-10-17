@@ -89,6 +89,7 @@ Three pieces work together:
 
   Each slot has a stage tile `tankStandoff` tiles behind the line, so units
   wait inside aura range without standing where they'd be overrun.
+
 - `FrontAssigner` places all of an owner's units of one type together, in
   rounds. Each round sends the nearest free unit to the uncovered slot with
   the most weight left. A fight counts for less with each unit it already
@@ -281,3 +282,52 @@ the TypeScript version, including the cost of copying data in and out.
 Profile before porting anything. Most engine time sits in code that touches
 game objects, not flat arrays, and Rust can't help there; see the per-tick
 numbers in the commit history.
+
+## Nation personalities
+
+`packages/engine/src/game/NationPersonality.ts`. Before this, nations
+differed only by game difficulty plus four random ratios each
+(`triggerRatio`, `reserveRatio`, `expandRatio`, `attackRate`). Each nation
+now also rolls an archetype and five traits, 0..100, from its own PRNG
+(nation id + game id), so the main PRNG stream is unchanged:
+
+| Trait        | Changes                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------- |
+| aggression   | lower trigger ratio, faster decisions, `hated`/`weakest` pulled forward, more Military Bases, builds tanks (40+) |
+| loyalty      | betrayal thresholds (85+: only traitors), assists allies it's merely neutral to (70+)                            |
+| mercantilism | port/factory ratios, how big a trade share makes a valued partner                                                |
+| caution      | bigger reserve, more SAMs, defense posts against smaller attacks                                                 |
+| ambition     | `crown` pulled forward (75+)                                                                                     |
+
+Archetypes (Balanced ×2, Warmonger, Merchant, Diplomat, Opportunist,
+Turtle) are presets plus ±10 jitter. Players see the archetype in the hover
+panel ("Nation · Merchant").
+
+Rules for adding a trait effect:
+
+- Use the helpers (`scaled`, `scaledInt`, `likelierOdds`). They return the
+  input unchanged at 50, so a trait of 50 behaves like the old code.
+- Never add a PRNG draw for a trait; rescale numbers already in use.
+- Read traits with `personalityOf(player)`. It returns `NEUTRAL` for bots,
+  humans and games with `nationPersonalities()` off.
+
+The personality is saved in the `NationExecution` snapshot (v2) and
+re-registered on restore.
+
+## Trade ledger and trading nations
+
+`Player.recordTrade(partner, gold)` is called for both sides when a trade
+ship arrives and when a train stops at a foreign station.
+`tradeVolumeWith(p)` reads it. The ledger halves every
+`tradeLedgerDecayTicks` (600), so it shows recent trade. It's in the player
+snapshot (v3).
+
+`execution/nation/NationTradeBehavior.ts` turns that into diplomacy, scaled
+by mercantilism and only with personalities on:
+
+- **Trade breeds friendship.** Relation with each partner rises with its
+  share of our trade, up to Friendly.
+- **Valued partners are protected.** A partner with a big enough share of
+  our trade is skipped by `juicy`, `hated` and `weakest` (unless aggression
+  is 70+). It isn't embargoed over a grudge, an embargo against it lifts at
+  Neutral, and alliance requests from it are accepted.

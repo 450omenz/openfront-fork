@@ -1,4 +1,5 @@
 import {
+  Archetype,
   Difficulty,
   GameMode,
   PlayerInfo,
@@ -11,6 +12,10 @@ import { AllianceRequestExecution } from "@openfront/engine/execution/alliance/A
 import { NationAllianceBehavior } from "@openfront/engine/execution/nation/NationAllianceBehavior";
 import { NationEmojiBehavior } from "@openfront/engine/execution/nation/NationEmojiBehavior";
 import { AllianceRequest, Game, Player } from "@openfront/engine/game/Game";
+import {
+  NEUTRAL,
+  setPersonality,
+} from "@openfront/engine/game/NationPersonality";
 import { setup } from "./util/Setup";
 
 let game: Game;
@@ -284,6 +289,29 @@ describe("AllianceBehavior.maybeBetray - juicy ally strategy", () => {
   }
 
   it.each([Difficulty.Hard, Difficulty.Impossible])(
+    "%s: a very loyal nation never betrays the juicy ally (fork)",
+    async (difficulty) => {
+      const { player, allyJuicy, allyMeh, threat, allianceBehavior } =
+        await setupBetrayTest(difficulty);
+      setPersonality(player, {
+        ...NEUTRAL,
+        archetype: Archetype.Diplomat,
+        loyalty: 95,
+      });
+
+      const result = allianceBehavior.maybeBetray(
+        allyJuicy,
+        allianceBehavior.findJuiciestAlly([allyJuicy, allyMeh]),
+        [allyJuicy, allyMeh],
+        [threat],
+      );
+
+      expect(result).toBe(false);
+      expect(player.isAlliedWith(allyJuicy)).toBe(true);
+    },
+  );
+
+  it.each([Difficulty.Hard, Difficulty.Impossible])(
     "%s: betrays the juicier ally when nearby non-allied players are weak",
     async (difficulty) => {
       const { player, allyJuicy, allyMeh, threat, allianceBehavior } =
@@ -488,6 +516,7 @@ describe("AllianceBehavior.maybeBetray - juicy ally strategy", () => {
         ally,
         [ally, teammate],
         [],
+        0.33,
       );
 
       expect(result).toBe(true);

@@ -43,6 +43,8 @@ class TradeStationStopHandler implements TrainStopHandler {
       stationOwner.addGold(gold, station.tile());
       stationOwner.addTrainGold(gold);
       mg.stats().trainExternalTrade(stationOwner, gold);
+      stationOwner.recordTrade(trainOwner, gold);
+      trainOwner.recordTrade(stationOwner, gold);
     }
     trainOwner.addGold(gold, station.tile());
     trainOwner.addTrainGold(gold);
