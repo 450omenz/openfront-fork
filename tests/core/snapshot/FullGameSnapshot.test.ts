@@ -199,7 +199,12 @@ describe.each(VARIANTS)("full game snapshots: %s", (_, overrides) => {
       // Tank and CivicCenter (fork): no AI builds them yet, so the simulated
       // game never runs one. tests/Tank.test.ts and tests/CivicCenter.test.ts
       // cover their snapshot round trips.
-      const neverStored = new Set(["Pause", "Tank", "UpkeepStructure"]);
+      const neverStored = new Set([
+        "Coalition",
+        "Pause",
+        "Tank",
+        "UpkeepStructure",
+      ]);
       const missing = EXECUTION_SNAPSHOT_TYPES.map((t) => t.name).filter(
         (name) => !reference.execTypes.has(name) && !neverStored.has(name),
       );

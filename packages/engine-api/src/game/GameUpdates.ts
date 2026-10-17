@@ -116,6 +116,9 @@ export enum GameUpdateType {
   SpawnPhaseEnd,
   GamePaused,
   DonateEvent,
+  // Fork: append-only.
+  Coalitions,
+  CoalitionInvite,
 }
 
 export type GameUpdate =
@@ -141,7 +144,9 @@ export type GameUpdate =
   | EmbargoUpdate
   | SpawnPhaseEndUpdate
   | GamePausedUpdate
-  | DonateEventUpdate;
+  | DonateEventUpdate
+  | CoalitionsUpdate
+  | CoalitionInviteUpdate;
 
 export interface BonusEventUpdate {
   type: GameUpdateType.BonusEvent;
@@ -398,6 +403,37 @@ export interface EmbargoUpdate {
 export interface SpawnPhaseEndUpdate {
   type: GameUpdateType.SpawnPhaseEnd;
   startTick: Tick;
+}
+
+/** Fork: one coalition as the client sees it. Players are smallIDs. */
+export interface CoalitionView {
+  id: number;
+  name: string;
+  leaderID: number;
+  /** In join order, leader included. */
+  memberIDs: number[];
+  /** Players the coalition trade-bans. */
+  sanctionIDs: number[];
+  /** The leader's attack order, if one is active. */
+  targetID: number | null;
+  /** Tick the attack order lapses. */
+  targetUntil: Tick | null;
+}
+
+/** Fork: the full coalition list, sent whenever any coalition changes. */
+export interface CoalitionsUpdate {
+  type: GameUpdateType.Coalitions;
+  coalitions: CoalitionView[];
+}
+
+/** Fork: a coalition leader invited a player. */
+export interface CoalitionInviteUpdate {
+  type: GameUpdateType.CoalitionInvite;
+  coalitionID: number;
+  name: string;
+  inviterID: number;
+  recipientID: number;
+  expiresAt: Tick;
 }
 
 export interface GamePausedUpdate {

@@ -46,7 +46,8 @@ export type Intent =
   | KickPlayerIntent
   | TogglePauseIntent
   | UpdateGameConfigIntent
-  | ToggleGameStartTimer;
+  | ToggleGameStartTimer
+  | CoalitionIntent;
 
 export type AttackIntent = z.infer<typeof AttackIntentSchema>;
 export type CancelAttackIntent = z.infer<typeof CancelAttackIntentSchema>;
@@ -549,6 +550,58 @@ export const ToggleGameStartTimerIntentSchema = z.object({
   type: z.literal("toggle_game_start_timer"),
 });
 
+// Fork: coalitions. Names: letters, digits, spaces and a little punctuation.
+export const COALITION_NAME_MAX = 24;
+export const COALITION_NAME_REGEX = /^[\p{L}\p{N}][\p{L}\p{N} '._-]*$/u;
+export const CoalitionNameSchema = zb.string({
+  min: 1,
+  max: COALITION_NAME_MAX,
+  regex: COALITION_NAME_REGEX,
+});
+
+export const CoalitionCreateIntentSchema = z.object({
+  type: z.literal("coalition_create"),
+  name: CoalitionNameSchema,
+});
+export const CoalitionInviteIntentSchema = z.object({
+  type: z.literal("coalition_invite"),
+  recipient: MappedID,
+});
+export const CoalitionReplyIntentSchema = z.object({
+  type: z.literal("coalition_reply"),
+  coalitionID: zb.uint(),
+  accept: z.boolean(),
+});
+export const CoalitionLeaveIntentSchema = z.object({
+  type: z.literal("coalition_leave"),
+});
+export const CoalitionKickIntentSchema = z.object({
+  type: z.literal("coalition_kick"),
+  target: MappedID,
+});
+export const CoalitionSanctionIntentSchema = z.object({
+  type: z.literal("coalition_sanction"),
+  target: MappedID,
+  action: z.union([z.literal("start"), z.literal("stop")]),
+});
+export const CoalitionTargetIntentSchema = z.object({
+  type: z.literal("coalition_target"),
+  target: MappedID,
+});
+export const CoalitionTransferIntentSchema = z.object({
+  type: z.literal("coalition_transfer"),
+  target: MappedID,
+});
+export type CoalitionIntent =
+  | z.infer<typeof CoalitionCreateIntentSchema>
+  | z.infer<typeof CoalitionInviteIntentSchema>
+  | z.infer<typeof CoalitionReplyIntentSchema>
+  | z.infer<typeof CoalitionLeaveIntentSchema>
+  | z.infer<typeof CoalitionKickIntentSchema>
+  | z.infer<typeof CoalitionSanctionIntentSchema>
+  | z.infer<typeof CoalitionTargetIntentSchema>
+  | z.infer<typeof CoalitionTransferIntentSchema>;
+
 export const IntentSchema = z.discriminatedUnion("type", [
   AttackIntentSchema,
   CancelAttackIntentSchema,
@@ -575,6 +628,15 @@ export const IntentSchema = z.discriminatedUnion("type", [
   TogglePauseIntentSchema,
   UpdateGameConfigIntentSchema,
   ToggleGameStartTimerIntentSchema,
+  // Fork: append only (zbin numbers members by position).
+  CoalitionCreateIntentSchema,
+  CoalitionInviteIntentSchema,
+  CoalitionReplyIntentSchema,
+  CoalitionLeaveIntentSchema,
+  CoalitionKickIntentSchema,
+  CoalitionSanctionIntentSchema,
+  CoalitionTargetIntentSchema,
+  CoalitionTransferIntentSchema,
 ]);
 
 // StampedIntent = Intent with server-stamped clientID (used in turns and execution)

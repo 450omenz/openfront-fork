@@ -1,3 +1,4 @@
+import { CoalitionExecution } from "./coalition/CoalitionExecution";
 import {
   ClientID,
   GameID,
@@ -144,6 +145,46 @@ export class Executor {
         return new MarkDisconnectedExecution(player, intent.isDisconnected);
       case "toggle_pause":
         return new PauseExecution(player, intent.paused);
+      // Fork: coalitions.
+      case "coalition_create":
+        return new CoalitionExecution(player, {
+          kind: "create",
+          name: intent.name,
+        });
+      case "coalition_invite":
+        return new CoalitionExecution(player, {
+          kind: "invite",
+          target: intent.recipient,
+        });
+      case "coalition_reply":
+        return new CoalitionExecution(player, {
+          kind: "reply",
+          coalitionID: intent.coalitionID,
+          accept: intent.accept,
+        });
+      case "coalition_leave":
+        return new CoalitionExecution(player, { kind: "leave" });
+      case "coalition_kick":
+        return new CoalitionExecution(player, {
+          kind: "kick",
+          target: intent.target,
+        });
+      case "coalition_sanction":
+        return new CoalitionExecution(player, {
+          kind: "sanction",
+          target: intent.target,
+          on: intent.action === "start",
+        });
+      case "coalition_target":
+        return new CoalitionExecution(player, {
+          kind: "target",
+          target: intent.target,
+        });
+      case "coalition_transfer":
+        return new CoalitionExecution(player, {
+          kind: "transfer",
+          target: intent.target,
+        });
       default:
         throw new Error(`intent type ${intent} not found`);
     }

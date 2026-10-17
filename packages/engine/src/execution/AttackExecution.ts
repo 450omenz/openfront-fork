@@ -24,7 +24,11 @@ import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
 import { AttackLogicInput } from "../configuration/EngineConfig";
 import { Attack, Execution, Game, Player, Unit } from "../game/Game";
-import { TrainedInput, TrainingSnapshot } from "../game/Military";
+import {
+  friendsForWar,
+  TrainedInput,
+  TrainingSnapshot,
+} from "../game/Military";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
 import type {
   ExecRecord,
@@ -480,11 +484,14 @@ export class AttackExecution implements Execution {
   private buildTickCtx(defender: Player | null) {
     if (defender === null) return null;
     const allies = new Set<number>();
-    for (const a of defender.allies()) {
+    for (const a of friendsForWar(defender)) {
       if (a !== this._owner) allies.add(a.smallID());
     }
-    let jointAttack = false;
-    for (const ally of this._owner.allies()) {
+    // Fork: attacking the coalition's ordered target is a joint attack even
+    // before other members join in.
+    let jointAttack = this._owner.coalition()?.target() === defender;
+    for (const ally of friendsForWar(this._owner)) {
+      if (jointAttack) break;
       for (const a of ally.outgoingAttacks()) {
         if (a.target() === defender) {
           jointAttack = true;
@@ -517,7 +524,7 @@ export class AttackExecution implements Execution {
   private callAlliesToArms(defender: Player) {
     if (this._owner.type() === PlayerType.Bot) return;
     const now = this.mg.ticks();
-    for (const ally of defender.allies()) {
+    for (const ally of friendsForWar(defender)) {
       if (ally === this._owner || ally.type() !== PlayerType.Human) continue;
       let sent = callToArmsSent.get(ally);
       if (sent === undefined) {

@@ -384,6 +384,8 @@ export interface PlayerActions {
   buildableUnits: BuildableUnit[];
   canSendEmojiAllPlayers: boolean;
   canEmbargoAll?: boolean;
+  /** Fork: can found a coalition right now. */
+  canCreateCoalition?: boolean;
   interaction?: PlayerInteraction;
 }
 
@@ -475,6 +477,13 @@ export interface PlayerInteraction {
   canDonateTroops: boolean;
   canEmbargo: boolean;
   allianceInfo?: AllianceInfo;
+  // Fork: coalition actions on this player (leader-only except leave).
+  canCoalitionInvite?: boolean;
+  canCoalitionKick?: boolean;
+  canCoalitionSanction?: boolean;
+  canCoalitionUnsanction?: boolean;
+  canCoalitionTarget?: boolean;
+  canCoalitionTransfer?: boolean;
 }
 
 export interface EmojiMessage {

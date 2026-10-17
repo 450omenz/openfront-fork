@@ -1,3 +1,4 @@
+import { CoalitionManager, CoalitionsSnapshot } from "./Coalitions";
 import { GameMap, TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   Cell,
@@ -154,6 +155,7 @@ export class GameImpl implements Game {
   private playerTeams: Team[] = [];
   private botTeam: Team = ColoredTeams.Bot;
   private _railNetwork: RailNetwork = createRailNetwork(this);
+  private _coalitions = new CoalitionManager(this);
 
   // Used to assign unique IDs to each new alliance
   private nextAllianceID: number = 0;
@@ -972,7 +974,7 @@ export class GameImpl implements Game {
   }
 
   /** Remove an alliance from both participants' per-player alliance lists. */
-  private detachAlliance(alliance: Alliance): void {
+  detachAlliance(alliance: Alliance): void {
     const requestor = alliance.requestor() as PlayerImpl;
     const recipient = alliance.recipient() as PlayerImpl;
     requestor._alliances = requestor._alliances.filter((a) => a !== alliance);
@@ -1430,6 +1432,10 @@ export class GameImpl implements Game {
   stats(): Stats {
     return this._stats;
   }
+  coalitions(): CoalitionManager {
+    return this._coalitions;
+  }
+
   railNetwork(): RailNetwork {
     return this._railNetwork;
   }
@@ -1524,6 +1530,7 @@ export class GameImpl implements Game {
         this._sharedWaterCache.snapshot(w),
       ),
       stats: w.versioned(StatsSnapshot, (this._stats as StatsImpl).snapshot()),
+      coalitions: w.versioned(CoalitionsSnapshot, this._coalitions.snapshot(w)),
     };
   }
 
@@ -1588,6 +1595,14 @@ export class GameImpl implements Game {
     (this._stats as StatsImpl).restoreSnapshot(
       readVersioned(StatsSnapshot, s.stats),
     );
+    if (s.coalitions !== null) {
+      this._coalitions.restore(
+        readVersioned(CoalitionsSnapshot, s.coalitions),
+        r,
+      );
+      // Clients only hear about coalitions on a change; resend the list.
+      if (this._coalitions.all().length > 0) this._coalitions.emit();
+    }
   }
 
   conquerPlayer(conqueror: Player, conquered: Player) {
@@ -1676,10 +1691,12 @@ export class GameImpl implements Game {
 
 export const GameSnapshot = snapshotType({
   name: "Game",
-  version: 2,
+  version: 3,
   migrations: {
     // Fork: entrenchment. Old games count all land as long held.
     1: (d) => ({ ...d, heldSince: null }),
+    // Fork: coalitions.
+    2: (d) => ({ ...d, coalitions: null }),
   },
   schema: z.object({
     ticks: zInt(),
@@ -1715,6 +1732,8 @@ export const GameSnapshot = snapshotType({
     water: VersionedSchema,
     sharedWaterCache: VersionedSchema,
     stats: VersionedSchema,
+    /** Fork. Null for games saved before coalitions. */
+    coalitions: VersionedSchema.nullable(),
   }),
 });
 export type GameState = z.infer<typeof GameSnapshot.schema>;

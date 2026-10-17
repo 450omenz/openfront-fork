@@ -331,3 +331,46 @@ by mercantilism and only with personalities on:
   our trade is skipped by `juicy`, `hated` and `weakest` (unless aggression
   is 70+). It isn't embargoed over a grudge, an embargo against it lifts at
   Neutral, and alliance requests from it are accepted.
+
+## Coalitions
+
+`packages/engine/src/game/Coalitions.ts` (`game.coalitions()`). A
+coalition is a lasting group of players at peace with each other. Its
+leader can ban trade with outsiders and give attack orders.
+
+- **Peace.** Members are `isFriendly` with each other, like teammates. They
+  can't attack each other, and joining cancels nukes already in flight
+  between them. Membership never expires. Joining drops any pairwise
+  alliance with other members, because it's no longer needed.
+- **War effects.** `Military.friendsForWar(player)` (allies plus coalition
+  members) feeds ally support, joint attacks, lent training and the call
+  to arms.
+- **Sanctions.** `PlayerImpl.canTrade` returns false between a sanctioned
+  player and every member of the coalition. Ships, ports and trains
+  already check `canTrade`.
+- **Attack order.** The leader names a target. It's added to every member's
+  `transitiveTargets()`, and attacking it counts as a joint attack. It
+  lasts `coalitionTargetDuration`, with `coalitionTargetCooldown` between
+  orders. Human members get a call-to-arms message.
+- **Leaving** breaks the peace: the leaver is marked a traitor, the way
+  breaking an alliance does. A nuke that hits a member also counts as
+  leaving. Being kicked doesn't make you a traitor. Either way, the player
+  can't join any coalition for `coalitionRejoinCooldown`.
+- **Leadership.** If the leader leaves or is eliminated, the member with
+  the most land takes over. A coalition left with one member dissolves.
+- **When it's off.** Coalitions are disabled in team games and when
+  alliances are disabled.
+
+**Intents and executions.** There are eight `coalition_*` intents, appended
+to `IntentSchema`. All of them map to the one-shot `CoalitionExecution`.
+The manager validates every action itself, because intents come from
+clients.
+
+**Updates to clients.**
+
+- `GameUpdateType.Coalitions` carries the full `CoalitionView` list after
+  every change. Replays store it as a misc update.
+- `GameUpdateType.CoalitionInvite` is sent for each invite.
+
+**Saving.** Pending invites, cooldowns and coalitions are saved in the game
+snapshot (v3, `coalitions`).

@@ -81,6 +81,10 @@ export const UPDATE_TYPE_ROUTING: Record<
   SpawnPhaseEnd: "events",
   GamePaused: "misc",
   DonateEvent: "misc",
+  // Fork: the full coalition list rides along, so replays need no extra
+  // player field for it.
+  Coalitions: "misc",
+  CoalitionInvite: "misc",
 };
 
 /**

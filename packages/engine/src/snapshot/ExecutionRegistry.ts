@@ -1,4 +1,5 @@
 // Every entry is `<ClassName>Snapshot`, exported next to its class.
+import { CoalitionExecutionSnapshot } from "../execution/coalition/CoalitionExecution";
 import { AllianceExtensionExecutionSnapshot } from "../execution/alliance/AllianceExtensionExecution";
 import { AllianceRejectExecutionSnapshot } from "../execution/alliance/AllianceRejectExecution";
 import { AllianceRequestExecutionSnapshot } from "../execution/alliance/AllianceRequestExecution";
@@ -62,6 +63,7 @@ export const EXECUTION_SNAPSHOT_TYPES = [
   BoatRetreatExecutionSnapshot,
   BreakAllianceExecutionSnapshot,
   CityExecutionSnapshot,
+  CoalitionExecutionSnapshot,
   ConstructionExecutionSnapshot,
   DefensePostExecutionSnapshot,
   DeleteUnitExecutionSnapshot,

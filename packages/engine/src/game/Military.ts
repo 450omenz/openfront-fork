@@ -8,6 +8,22 @@ import { Game, Player } from "./Game";
  * they produce. See docs/ForkExtending.md.
  */
 
+/**
+ * Fork: who fights alongside the player — allies plus fellow coalition
+ * members, each once. Ally support, joint attacks, lent training and the
+ * call to arms all use this.
+ */
+export function friendsForWar(player: Player): Player[] {
+  const allies = player.allies();
+  const coalition = player.coalition();
+  if (coalition === null) return allies;
+  const out = [...allies];
+  for (const m of coalition.members()) {
+    if (m !== player && !out.includes(m)) out.push(m);
+  }
+  return out;
+}
+
 /** How often (ticks) the trained pool grows. */
 export const TRAIN_INTERVAL = 10;
 
@@ -22,7 +38,7 @@ export function trainingLevel(game: Game, player: Player): number {
   // time there is none, and nearby() (a full border scan whenever any tile on
   // the map changed hands) is the expensive part.
   let allyHasBase = false;
-  for (const a of player.allies()) {
+  for (const a of friendsForWar(player)) {
     if (config.workingMilitaryBases(a) > 0) {
       allyHasBase = true;
       break;
@@ -42,7 +58,12 @@ function lentLevels(game: Game, player: Player): number {
   const config = game.config();
   let lent = 0;
   for (const n of player.nearby()) {
-    if (!n.isPlayer() || !player.isAlliedWith(n)) continue;
+    if (
+      !n.isPlayer() ||
+      (!player.isAlliedWith(n) && !player.isCoalitionMember(n))
+    ) {
+      continue;
+    }
     lent += config.workingMilitaryBases(n);
   }
   return lent;

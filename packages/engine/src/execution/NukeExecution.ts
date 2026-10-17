@@ -192,6 +192,10 @@ export class NukeExecution implements Execution {
       if (alliance !== null) {
         this.player.breakAlliance(alliance);
       }
+      // Fork: nuking a fellow coalition member breaks with the coalition.
+      if (this.player.isCoalitionMember(attackedPlayer)) {
+        this.mg.coalitions().leave(this.player);
+      }
       if (attackedPlayer !== this.player) {
         attackedPlayer.updateRelation(this.player, -100);
       }

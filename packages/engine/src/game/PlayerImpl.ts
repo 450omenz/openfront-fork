@@ -69,6 +69,7 @@ import type {
 } from "../snapshot/SnapshotContext";
 import { AttackImpl } from "./AttackImpl";
 import {
+  Coalition,
   Alliance,
   AllianceRequest,
   Attack,
@@ -875,6 +876,16 @@ export class PlayerImpl implements Player {
 
   removeAllAlliances(): void {
     this.mg.removeAlliancesByPlayerSilently(this);
+    // Fork: elimination ends coalition membership too (no traitor mark).
+    this.mg.coalitions().removeSilently(this);
+  }
+
+  coalition(): Coalition | null {
+    return this.mg.coalitions().of(this);
+  }
+
+  isCoalitionMember(other: Player): boolean {
+    return this.mg.coalitions().together(this, other);
   }
 
   isTraitor(): boolean {
@@ -1031,6 +1042,9 @@ export class PlayerImpl implements Player {
       .map((a) => a.other(this))
       .flatMap((ally) => ally.targets());
     ts.push(...this.targets());
+    // Fork: the coalition leader's attack order.
+    const order = this.coalition()?.target();
+    if (order) ts.push(order);
     return [...new Set(ts)] satisfies Player[];
   }
 
@@ -1245,7 +1259,12 @@ export class PlayerImpl implements Player {
   canTrade(other: Player): boolean {
     const embargo =
       other.hasEmbargoAgainst(this) || this.hasEmbargoAgainst(other);
-    return !embargo && other.id() !== this.id();
+    return (
+      !embargo &&
+      other.id() !== this.id() &&
+      // Fork: a coalition's sanctions cover all its members.
+      !this.mg.coalitions().sanctioned(this, other)
+    );
   }
 
   getEmbargoes(): Embargo[] {
@@ -1317,7 +1336,11 @@ export class PlayerImpl implements Player {
     if (other.isDisconnected() && !treatAFKFriendly) {
       return false;
     }
-    return this.isOnSameTeam(other) || this.isAlliedWith(other);
+    return (
+      this.isOnSameTeam(other) ||
+      this.isAlliedWith(other) ||
+      this.mg.coalitions().together(this, other)
+    );
   }
 
   gold(): Gold {

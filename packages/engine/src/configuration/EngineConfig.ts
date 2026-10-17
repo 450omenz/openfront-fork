@@ -212,6 +212,25 @@ export class EngineConfig extends Config {
   tankManualHoldTicks(): number {
     return 30 * 10;
   }
+  // --- Coalitions (fork) ---
+  coalitionMaxMembers(): number {
+    return 6;
+  }
+  coalitionInviteDuration(): number {
+    return this.allianceRequestDuration();
+  }
+  // After leaving or being kicked, a player can't join a coalition for 3m.
+  coalitionRejoinCooldown(): number {
+    return 3 * 60 * 10;
+  }
+  // A leader's attack order lasts 2 minutes...
+  coalitionTargetDuration(): number {
+    return 2 * 60 * 10;
+  }
+  // ...and a new one can be given every 30 seconds.
+  coalitionTargetCooldown(): number {
+    return 30 * 10;
+  }
   // Fork: the per-partner trade ledger halves this often (one minute), so
   // it reflects recent trade.
   tradeLedgerDecayTicks(): number {

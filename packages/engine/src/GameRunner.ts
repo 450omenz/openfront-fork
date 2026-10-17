@@ -328,6 +328,7 @@ export class GameRunner {
       buildableUnits: units === null ? [] : player.buildableUnits(tile, units),
       canSendEmojiAllPlayers: player.canSendEmoji(AllPlayers),
       canEmbargoAll: player.canEmbargoAll(),
+      canCreateCoalition: this.game.coalitions().canCreate(player),
     } as PlayerActions;
 
     if (tile !== null && this.game.hasOwner(tile)) {
@@ -342,10 +343,27 @@ export class GameRunner {
         canDonateTroops: player.canDonateTroops(other),
         canEmbargo: !player.hasEmbargoAgainst(other),
         allianceInfo: player.allianceInfo(other) ?? undefined,
+        ...this.coalitionInteraction(player, other),
       };
     }
 
     return actions;
+  }
+
+  // Fork: what `player` may do to `other` through its coalition.
+  private coalitionInteraction(player: Player, other: Player) {
+    const c = this.game.coalitions();
+    const mine = c.of(player);
+    const leads = mine !== null && mine.leader() === player;
+    return {
+      canCoalitionInvite: c.canInvite(player, other),
+      canCoalitionKick: c.canKick(player, other),
+      canCoalitionSanction:
+        c.canSanction(player, other) && !mine!.sanctions().has(other),
+      canCoalitionUnsanction: leads && mine.sanctions().has(other),
+      canCoalitionTarget: c.canTarget(player, other),
+      canCoalitionTransfer: leads && other !== player && mine.has(other),
+    };
   }
 
   public playerProfile(playerID: number): PlayerProfile {

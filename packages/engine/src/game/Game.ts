@@ -481,6 +481,10 @@ export interface Player extends PlayerLike {
   target(other: Player): void;
   targets(): Player[];
   transitiveTargets(): Player[];
+  /** Fork: this player's coalition, if any. */
+  coalition(): Coalition | null;
+  /** Fork: in the same coalition as this player. */
+  isCoalitionMember(other: Player): boolean;
 
   // Communication
   canSendEmoji(recipient: Player | typeof AllPlayers): boolean;
@@ -534,6 +538,51 @@ export interface Player extends PlayerLike {
   playerProfile(): PlayerProfile;
   // WARNING: this operation is expensive.
   bestTransportShipSpawn(tile: TileRef): TileRef | false;
+}
+
+// Fork: coalitions (implementation and rules in Coalitions.ts).
+export interface Coalition {
+  id(): number;
+  name(): string;
+  leader(): Player;
+  members(): readonly Player[];
+  size(): number;
+  has(p: Player): boolean;
+  sanctions(): ReadonlySet<Player>;
+  /** The leader's attack order while it lasts. */
+  target(): Player | null;
+  createdAt(): Tick;
+}
+
+export interface CoalitionInvite {
+  coalition: Coalition;
+  inviter: Player;
+  recipient: Player;
+  createdAt: Tick;
+}
+
+export interface Coalitions {
+  enabled(): boolean;
+  all(): readonly Coalition[];
+  of(p: Player): Coalition | null;
+  get(id: number): Coalition | null;
+  invitesFor(p: Player): readonly CoalitionInvite[];
+  together(a: Player, b: Player): boolean;
+  sanctioned(a: Player, b: Player): boolean;
+  canCreate(p: Player): boolean;
+  canInvite(leader: Player, target: Player): boolean;
+  canKick(leader: Player, target: Player): boolean;
+  canSanction(leader: Player, target: Player): boolean;
+  canTarget(leader: Player, target: Player): boolean;
+  create(founder: Player, name: string): Coalition | null;
+  invite(leader: Player, target: Player): boolean;
+  reply(recipient: Player, coalitionID: number, accept: boolean): boolean;
+  leave(p: Player): boolean;
+  kick(leader: Player, target: Player): boolean;
+  transfer(leader: Player, target: Player): boolean;
+  setSanction(leader: Player, target: Player, on: boolean): boolean;
+  setTarget(leader: Player, target: Player): boolean;
+  removeSilently(p: Player): void;
 }
 
 export interface Game extends GameLike {
@@ -678,6 +727,8 @@ export interface Game extends GameLike {
 
   addUpdate(update: GameUpdate): void;
   railNetwork(): RailNetwork;
+  /** Fork: coalitions (see Coalitions.ts). */
+  coalitions(): Coalitions;
   /** MIRVs launched so far by anyone; each one raises the next one's price. */
   mirvsLaunched(): number;
   recordMirvLaunch(): void;
