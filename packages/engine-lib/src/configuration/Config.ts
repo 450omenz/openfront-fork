@@ -4,12 +4,16 @@ import {
   PlayerType,
   Tick,
   UnitInfo,
+  UnitStatus,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
 import { PlayerLike } from "@openfront/engine-api/game/ReadViews";
 import { GameConfig } from "@openfront/engine-api/Schemas";
 import { pow } from "../DetMath";
 import { DoomsdayClockSpeed } from "../game/DoomsdayClock";
+import { DensitySources, PopulationDensity } from "../game/PopulationDensity";
+
+const populationDensityCache = new WeakMap<object, PopulationDensity>();
 import { assertNever } from "../Util";
 
 export interface NukeMagnitude {
@@ -182,6 +186,71 @@ export class Config {
   tankAuraRange(): number {
     return 12;
   }
+  // --- Civic Center (fork) ---
+  // Gold charged per Civic Center every civicCenterUpkeepInterval ticks.
+  civicCenterUpkeep(): number {
+    return 1_500;
+  }
+  civicCenterUpkeepInterval(): Tick {
+    return 5 * 10;
+  }
+  // Troop regeneration bonus per working Civic Center, in percent.
+  civicCenterTroopBonusPercent(): number {
+    return 12;
+  }
+  // Only this many working Civic Center levels count toward the bonus.
+  civicCenterMaxCounted(): number {
+    return 5;
+  }
+  // Civic Centers stack: each level counts as one center.
+  workingCivicCenters(player: PlayerLike): number {
+    return this.workingLevels(
+      player,
+      UnitType.CivicCenter,
+      this.civicCenterMaxCounted(),
+    );
+  }
+
+  // Fork: summed levels of a player's working structures of one type, capped.
+  // Working = finished, active, and paid up (no NoFunds status). A structure
+  // stacked to level 3 counts as 3. Use this for any stackable building whose
+  // effect scales with how many the player has.
+  workingLevels(player: PlayerLike, type: UnitType, cap: number): number {
+    let n = 0;
+    for (const u of player.units(type)) {
+      if (
+        u.isActive() &&
+        !u.isUnderConstruction() &&
+        (u.statusFlags() & UnitStatus.NoFunds) === 0
+      ) {
+        n += u.level();
+      }
+    }
+    return Math.min(n, cap);
+  }
+
+  // --- Population density (fork), see game/PopulationDensity.ts ---
+  // Buildings that pack people around them. peak is extra weight at the
+  // building per level; it fades to nothing at radius. Add a row to make
+  // another building a source.
+  populationDensitySources(): DensitySources {
+    return {
+      [UnitType.City]: { peak: 6, radius: 20 },
+      [UnitType.CivicCenter]: { peak: 3, radius: 15 },
+      [UnitType.Port]: { peak: 2, radius: 15 },
+      [UnitType.Factory]: { peak: 1.5, radius: 12 },
+    };
+  }
+  populationDensity(): PopulationDensity {
+    // Cached outside the config so it never shows up in game snapshots.
+    let density = populationDensityCache.get(this);
+    if (density === undefined) {
+      density = new PopulationDensity(this.populationDensitySources());
+      populationDensityCache.set(this, density);
+    }
+    return density;
+  }
+
   // A factory within this distance of the clicked tile builds the tank.
   tankFactoryRange(): number {
     return 40;
@@ -227,6 +296,12 @@ export class Config {
         break;
       case UnitType.Tank:
         info = { maxHealth: 700 };
+        break;
+      case UnitType.CivicCenter:
+        info = {
+          constructionDuration: this.instantBuild() ? 0 : 5 * 10,
+          upgradable: true,
+        };
         break;
       case UnitType.Shell:
         info = { damage: 250 };
@@ -288,6 +363,11 @@ export class Config {
   }
   deletionMarkDuration(): Tick {
     return 30 * 10;
+  }
+
+  // Fork: share of a unit's price returned when it is deconstructed.
+  deconstructRefundPercent(): number {
+    return 50;
   }
 
   deleteUnitCooldown(): Tick {
@@ -411,6 +491,12 @@ export class Config {
           assertNever(this._gameConfig.difficulty);
       }
     }
+
+    // Civic Centers (fork): a percent bonus per working center.
+    toAdd *=
+      1 +
+      (this.workingCivicCenters(player) * this.civicCenterTroopBonusPercent()) /
+        100;
 
     return Math.min(player.troops() + toAdd, max) - player.troops();
   }

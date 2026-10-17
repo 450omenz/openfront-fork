@@ -26,7 +26,8 @@
  *   Col 9: Train Engine (5×5)
  *   Col 10: Train Carriage (5×5)
  *   Col 11: Train Carriage Loaded (5×5)
- *   Col 12: Tank (9×9, fork — appended by hand, not by the generator)
+ *   Col 12-19: Tank, 8 headings N..NW clockwise (fork — rendered by a script,
+ *              not the generator; heading from frame/TankHeading.ts)
  *
  * Data flow:
  *   FrameSnapshot.units → filter by typeToAtlasIdx → instance VBO → GPU
@@ -51,8 +52,10 @@ import {
   UT_TRANSPORT,
   UT_WARSHIP,
 } from "../../types";
+import { TankHeadingTracker } from "../../frame/TankHeading";
 import { DynamicInstanceBuffer } from "../DynamicBuffer";
 import type { RenderSettings } from "../RenderSettings";
+import { screenScale, typeScale } from "../UnitScale";
 import unitFragSrc from "../shaders/unit/unit.frag.glsl?raw";
 import unitVertSrc from "../shaders/unit/unit.vert.glsl?raw";
 import {
@@ -87,7 +90,16 @@ const UNIT_ORDER = [
   "TrainEngine",
   "TrainCarriage",
   "TrainCarriageLoaded",
-  UT_TANK, // fork: col 12 of unit-atlas.png
+  // fork: 8 tank headings, cols 12-19 (N, then clockwise). Only UT_TANK is a
+  // real unit type; the rest are placeholders that keep ATLAS_COLS right.
+  UT_TANK,
+  "TankNE",
+  "TankE",
+  "TankSE",
+  "TankS",
+  "TankSW",
+  "TankW",
+  "TankNW",
 ] as const;
 
 const ATLAS_COLS = UNIT_ORDER.length;
@@ -109,7 +121,7 @@ const TRAIN_FIRST_COL = UNIT_ORDER.indexOf("TrainEngine");
 /**
  * Per-instance data (16 bytes):
  *   float x, y, ownerID   — 12 bytes (3 floats)
- *   uint8 atlasIdx         —  1 byte  (atlas column 0–11)
+ *   uint8 atlasIdx         —  1 byte  (atlas column 0–19)
  *   uint8 flags            —  1 byte  (0 = normal, 1 = flicker, 2 = angry, 3 = trade-friendly, 4 = retreating, 5 = flicker-untargetable)
  *   uint8 flickerHash      —  1 byte  (per-instance flicker phase offset)
  *   1 byte padding         — aligns to 4-byte boundary
@@ -130,6 +142,22 @@ const FLAG_TRADE_SELF = 6;
 const TRAIN_ENGINE_COL = UNIT_ORDER.indexOf("TrainEngine");
 const TRAIN_CARRIAGE_COL = UNIT_ORDER.indexOf("TrainCarriage");
 const TRAIN_CARRIAGE_LOADED_COL = UNIT_ORDER.indexOf("TrainCarriageLoaded");
+const TANK_FIRST_COL = UNIT_ORDER.indexOf(UT_TANK);
+
+/** Atlas columns that are a variant of a unit type rather than a type of
+ *  their own; they take that type's unit.typeScale entry. */
+const COL_TYPE_ALIAS: Partial<Record<(typeof UNIT_ORDER)[number], string>> = {
+  TrainEngine: UT_TRAIN,
+  TrainCarriage: UT_TRAIN,
+  TrainCarriageLoaded: UT_TRAIN,
+  TankNE: UT_TANK,
+  TankE: UT_TANK,
+  TankSE: UT_TANK,
+  TankS: UT_TANK,
+  TankSW: UT_TANK,
+  TankW: UT_TANK,
+  TankNW: UT_TANK,
+};
 
 /** Nuke + warhead types — rendered with flickering hot colors */
 const FLICKER_TYPES: ReadonlySet<string> = new Set([
@@ -221,6 +249,10 @@ export class UnitPass {
   private uHBombGlowStrength: WebGLUniformLocation;
   private uHBombGlowInner: WebGLUniformLocation;
   private uUntargetableAlpha: WebGLUniformLocation;
+  private uScreenScale: WebGLUniformLocation;
+  private uTypeScale: WebGLUniformLocation;
+  /** unit.typeScale per atlas column, rebuilt each draw (debug GUI edits it). */
+  private typeScales = new Float32Array(ATLAS_COLS);
 
   private affiliationTex: WebGLTexture | null = null;
   private altView = false;
@@ -256,8 +288,9 @@ export class UnitPass {
    *  warship/train effects animate at the same pace as the structures effect. */
   private startTime = performance.now();
 
-  /** unitType string → atlas column (0-11) */
+  /** unitType string → atlas column (0-19; tanks add their heading) */
   private typeToAtlasCol = new Map<string, number>();
+  private tankHeadings: TankHeadingTracker;
   private mapW: number;
 
   // Trade-friendly detection: enemy trade ships heading to a self/allied port
@@ -279,6 +312,7 @@ export class UnitPass {
     this.paletteTex = paletteTex;
     this.effectTex = effectTex;
     this.tickIntervalMs = config.msPerTick();
+    this.tankHeadings = new TankHeadingTracker(header.mapWidth);
 
     // Build unitType string → atlas column mapping
     for (let i = 0; i < header.unitTypes.length; i++) {
@@ -309,6 +343,8 @@ export class UnitPass {
     this.uTime = gl.getUniformLocation(this.program, "uTime")!;
     this.uUnitSize = gl.getUniformLocation(this.program, "uUnitSize")!;
     this.uFlickerSpeed = gl.getUniformLocation(this.program, "uFlickerSpeed")!;
+    this.uScreenScale = gl.getUniformLocation(this.program, "uScreenScale")!;
+    this.uTypeScale = gl.getUniformLocation(this.program, "uTypeScale")!;
     this.uAngryColor = gl.getUniformLocation(this.program, "uAngryColor")!;
 
     this.uAltView = gl.getUniformLocation(this.program, "uAltView")!;
@@ -457,6 +493,7 @@ export class UnitPass {
     this.groundCount = 0;
     this.missileCount = 0;
     this.smoothSegs.length = 0;
+    this.tankHeadings.beginFrame();
 
     for (const unit of units.values()) {
       if (!unit.isActive || unit.waitTicks > 0) continue;
@@ -477,6 +514,10 @@ export class UnitPass {
       }
 
       if (atlasIdx === undefined) continue;
+      if (unit.unitType === UT_TANK) {
+        atlasIdx =
+          TANK_FIRST_COL + this.tankHeadings.heading(unit.id, unit.pos);
+      }
 
       const isRetreatingWarship =
         unit.unitType === UT_WARSHIP && unit.retreating;
@@ -549,6 +590,8 @@ export class UnitPass {
       }
     }
 
+    this.tankHeadings.endFrame();
+
     const gl = this.gl;
     if (this.groundCount > 0) {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.groundBuf.buffer);
@@ -589,11 +632,17 @@ export class UnitPass {
   }
 
   /** Bind shared program state + uniforms (call before drawGround/drawMissiles). */
-  private bindProgram(cameraMatrix: Float32Array): void {
+  private bindProgram(cameraMatrix: Float32Array, zoom: number): void {
     const gl = this.gl;
     gl.useProgram(this.program);
 
     const us = this.settings.unit;
+    gl.uniform1f(this.uScreenScale, screenScale(zoom, us));
+    for (let col = 0; col < ATLAS_COLS; col++) {
+      const name = UNIT_ORDER[col];
+      this.typeScales[col] = typeScale(COL_TYPE_ALIAS[name] ?? name, us);
+    }
+    gl.uniform1fv(this.uTypeScale, this.typeScales);
     gl.uniformMatrix3fv(this.uCamera, false, cameraMatrix);
     gl.uniform1f(this.uTick, this.frameTick);
     gl.uniform1f(this.uTime, (performance.now() - this.startTime) / 1000);
@@ -631,19 +680,19 @@ export class UnitPass {
   }
 
   /** Draw ground/sea units (boats, trains). Render below structures. */
-  drawGround(cameraMatrix: Float32Array): void {
+  drawGround(cameraMatrix: Float32Array, zoom: number): void {
     if (this.groundCount === 0) return;
-    this.bindProgram(cameraMatrix);
+    this.bindProgram(cameraMatrix, zoom);
     const gl = this.gl;
     gl.bindVertexArray(this.groundVao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.groundCount);
   }
 
   /** Draw missiles/projectiles (nukes, shells, SAM, MIRV warheads). Render above structures. */
-  drawMissiles(cameraMatrix: Float32Array): void {
+  drawMissiles(cameraMatrix: Float32Array, zoom: number): void {
     if (this.missileCount === 0) return;
     this.applyMissileSmoothing();
-    this.bindProgram(cameraMatrix);
+    this.bindProgram(cameraMatrix, zoom);
     const gl = this.gl;
     gl.bindVertexArray(this.missileVao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.missileCount);

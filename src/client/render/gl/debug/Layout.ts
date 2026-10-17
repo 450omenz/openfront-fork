@@ -332,6 +332,15 @@ export function buildTree(s: RenderSettings, d: RenderSettings): DebugNode[] {
 
     folder("Unit", [
       slider(s.unit, "unitSize", d.unit, 4, 64, 1),
+      slider(s.unit, "sizeMultiplier", d.unit, 0.5, 2, 0.05, "Size Multiplier"),
+      slider(s.unit, "minScreenPx", d.unit, 0, 48, 1, "Min Screen Px"),
+      slider(s.unit, "maxScreenPx", d.unit, 16, 256, 1, "Max Screen Px"),
+      folder(
+        "Per-Type Scale",
+        Object.keys(s.unit.typeScale).map((name) =>
+          slider(s.unit.typeScale, name, d.unit.typeScale, 0.25, 3, 0.05, name),
+        ),
+      ),
       slider(s.unit, "flickerSpeed", d.unit, 0, 2, 0.01),
       color(s.unit, "angryR", "angryG", "angryB", d.unit, "Angry Color"),
     ]),

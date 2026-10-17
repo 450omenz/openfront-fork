@@ -430,6 +430,38 @@ export class ReplayGameView {
       ? all
       : all.filter((u) => types.includes(u.type()));
   }
+  /** Units of these types within range (for the population density line). */
+  nearbyUnits(
+    tile: TileRef,
+    range: number,
+    types: UnitType | readonly UnitType[],
+  ): Array<{ unit: ReplayUnitView; distSquared: number }> {
+    const list = typeof types === "string" ? [types] : [...types];
+    const x = this.x(tile);
+    const y = this.y(tile);
+    const out: Array<{ unit: ReplayUnitView; distSquared: number }> = [];
+    for (const unit of this.units(...list)) {
+      if (unit.isUnderConstruction()) continue;
+      const dx = this.x(unit.tile()) - x;
+      const dy = this.y(unit.tile()) - y;
+      const distSquared = dx * dx + dy * dy;
+      if (distSquared <= range * range) out.push({ unit, distSquared });
+    }
+    return out;
+  }
+  anyUnitNearby(
+    tile: TileRef,
+    range: number,
+    types: readonly UnitType[],
+    predicate: (unit: ReplayUnitView) => boolean,
+    playerId?: string,
+  ): boolean {
+    return this.nearbyUnits(tile, range, types).some(
+      ({ unit }) =>
+        (playerId === undefined || unit.owner().id() === playerId) &&
+        predicate(unit),
+    );
+  }
   numTilesWithFallout(): number {
     return this.frame?.falloutTiles ?? 0;
   }

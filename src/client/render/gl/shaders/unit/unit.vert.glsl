@@ -11,6 +11,8 @@ uniform mat3  uCamera;
 
 uniform float uUnitSize;
 uniform float uHBombGlowScale; // quad enlargement for the hydrogen bomb glow halo
+uniform float uScreenScale;    // fork: zoom-clamped size factor (UnitScale.ts)
+uniform float uTypeScale[ATLAS_COLS]; // fork: render-settings unit.typeScale per column
 
 out vec2  vQuadPos;     // quad coords [0,1] — drives the radial glow falloff
 out vec2  vCellUV;      // sprite cell coords; the central 1/scale region is the sprite
@@ -41,9 +43,11 @@ void main() {
   vGlow = isHBomb;
   float scale = mix(1.0, uHBombGlowScale, isHBomb);
 
-  // UNIT_SIZE is in world-space tiles — no zoom division needed.
-  // Units scale with the map like territory tiles do.
-  float halfSize = uUnitSize * 0.5 * scale;
+  // UNIT_SIZE is in world-space tiles. Units scale with the map like
+  // territory tiles do, except uScreenScale keeps them between a minimum
+  // and maximum on-screen size; uTypeScale sizes each unit type.
+  float typeScale = uTypeScale[int(atlasCol + 0.5)];
+  float halfSize = uUnitSize * 0.5 * scale * uScreenScale * typeScale;
 
   vec2 center = vec2(worldX + 0.5, worldY + 0.5);
   vec2 worldPos = center + (aPos - 0.5) * halfSize * 2.0;

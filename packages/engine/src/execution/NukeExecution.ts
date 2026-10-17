@@ -395,13 +395,20 @@ export class NukeExecution implements Execution {
     const magnitude = config.nukeMagnitudes(this.nuke.type());
     const toDestroy = this.tilesToDestroy();
 
-    // Retrieve all impacted players and the number of tiles
-    const tilesPerPlayers = new Map<Player, number>();
+    // Retrieve all impacted players and, per player, the population density
+    // weight of each tile hit (fork) and their total weight before the blast.
+    const density = config.populationDensity();
+    const hits = new Map<Player, { weights: number[]; totalWeight: number }>();
     for (const tile of toDestroy) {
       const owner = mg.owner(tile);
       if (owner.isPlayer()) {
+        let hit = hits.get(owner);
+        if (hit === undefined) {
+          hit = { weights: [], totalWeight: density.totalWeight(mg, owner) };
+          hits.set(owner, hit);
+        }
+        hit.weights.push(density.tileWeight(mg, owner, tile));
         owner.relinquish(tile);
-        tilesPerPlayers.set(owner, (tilesPerPlayers.get(owner) ?? 0) + 1);
       }
 
       // Queue land tiles for batched water conversion
@@ -414,8 +421,10 @@ export class NukeExecution implements Execution {
     }
 
     // Then compute the explosion effect on each player
-    for (const [player, numImpactedTiles] of tilesPerPlayers) {
+    for (const [player, { weights, totalWeight }] of hits) {
+      const numImpactedTiles = weights.length;
       const tilesBeforeNuke = player.numTilesOwned() + numImpactedTiles;
+      let weightLeft = totalWeight;
       const transportShips = player.units(UnitType.TransportShip);
       const transportShipTroops = new Map<Unit, number>();
       for (const unit of transportShips) {
@@ -427,14 +436,19 @@ export class NukeExecution implements Execution {
       for (let i = 0; i < numImpactedTiles; i++) {
         // Diminishing effect as each affected tile has been nuked
         const numTilesLeft = tilesBeforeNuke - i;
+        // People die where they live: dense tiles (near cities) cost more.
         player.removeTroops(
-          config.nukeDeathFactor(
+          config.nukeDensityDeaths(
             this.nukeType,
             player.troops(),
-            numTilesLeft,
+            weights[i],
+            weightLeft,
+            (weights[i] * tilesBeforeNuke) / totalWeight,
             maxTroops,
           ),
         );
+        weightLeft -= weights[i];
+        // Attack stacks and boats aren't on the land: no density.
         for (const attack of outgoingAttacks) {
           const attackTroops = attack.troops();
           const deaths = config.nukeDeathFactor(
@@ -495,7 +509,7 @@ export class NukeExecution implements Execution {
         this.nukeType === UnitType.AtomBomb
           ? "events_display.atom_bomb_detonated"
           : "events_display.hydrogen_bomb_detonated";
-      for (const [impactedPlayer] of tilesPerPlayers) {
+      for (const [impactedPlayer] of hits) {
         mg.displayMessage(
           messageKey,
           MessageType.NUKE_DETONATED,

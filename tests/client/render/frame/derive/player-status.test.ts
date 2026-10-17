@@ -58,6 +58,7 @@ function ps(overrides: Partial<PlayerState> = {}): PlayerState {
 
 function unit(overrides: Partial<UnitState> = {}): UnitState {
   return {
+    statusFlags: 0,
     id: 1,
     unitType: UT_WARSHIP,
     ownerID: 1,

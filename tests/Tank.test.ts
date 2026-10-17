@@ -2,6 +2,7 @@ import {
   PlayerInfo,
   PlayerType,
   TerrainType,
+  UnitStatus,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
 import { GameConfig } from "@openfront/engine-api/Schemas";
@@ -9,6 +10,7 @@ import {
   AttackLogicInput,
   EngineConfig,
 } from "@openfront/engine/configuration/EngineConfig";
+import { AttackExecution } from "@openfront/engine/execution/AttackExecution";
 import { ConstructionExecution } from "@openfront/engine/execution/ConstructionExecution";
 import { MoveWarshipExecution } from "@openfront/engine/execution/MoveWarshipExecution";
 import { TankExecution } from "@openfront/engine/execution/TankExecution";
@@ -91,6 +93,38 @@ describe("Tank", () => {
     );
     executeTicks(game, 10);
     expect(tank.tile()).toBe(game.ref(10, 60));
+  });
+
+  test("a diagonal order drives a staircase, not an L", () => {
+    const tank = buildTank(p1, 10, 50);
+    game.addExecution(
+      new MoveWarshipExecution(p1, [tank.id()], game.ref(20, 60)),
+    );
+    let maxRun = 0;
+    let run = 0;
+    let lastDir = "";
+    let prev = tank.tile();
+    for (let i = 0; i < 60; i++) {
+      game.executeNextTick();
+      const cur = tank.tile();
+      if (cur === prev) continue;
+      const dir = game.x(cur) !== game.x(prev) ? "x" : "y";
+      run = dir === lastDir ? run + 1 : 1;
+      lastDir = dir;
+      maxRun = Math.max(maxRun, run);
+      prev = cur;
+    }
+    expect(tank.tile()).toBe(game.ref(20, 60));
+    // An L would be one 10-tile run each way.
+    expect(maxRun).toBeLessThanOrEqual(2);
+  });
+
+  test("an order to the tile it is on completes at once", () => {
+    const tank = buildTank(p1, 10, 50);
+    executeTicks(game, 2);
+    game.addExecution(new MoveWarshipExecution(p1, [tank.id()], tank.tile()));
+    executeTicks(game, 3);
+    expect(tank.targetTile()).toBeUndefined();
   });
 
   test("drives around land it does not own", () => {
@@ -198,6 +232,142 @@ describe("Tank", () => {
       expect(postWithTank.attackerTroopLoss).toBeLessThan(
         post.attackerTroopLoss,
       );
+    });
+  });
+
+  test("flags SupportingAttack while its aura boosts an attack", () => {
+    // The rear tank must stay in the rear.
+    game.config().tankAutoFront = () => false;
+    const front = buildTank(p1, 10, 50);
+    front.move(game.ref(47, 50)); // 3 tiles from the border at x = 50
+    front.setTargetTile(undefined);
+    const rear = buildTank(p1, 12, 50); // ~38 tiles behind the front
+    rear.setTargetTile(undefined);
+    executeTicks(game, 2);
+    expect(front.hasStatus(UnitStatus.SupportingAttack)).toBe(false);
+
+    p1.addTroops(1_000_000);
+    p2.addTroops(1_000);
+    game.addExecution(new AttackExecution(500_000, p1, p2.id(), null));
+    // The front spans the whole border; the tank lights up whenever tiles
+    // inside its aura are taken.
+    let frontLit = false;
+    let rearLit = false;
+    for (let i = 0; i < 80; i++) {
+      game.executeNextTick();
+      frontLit ||= front.hasStatus(UnitStatus.SupportingAttack);
+      rearLit ||= rear.hasStatus(UnitStatus.SupportingAttack);
+    }
+    expect(frontLit).toBe(true);
+    expect(rearLit).toBe(false);
+
+    // Once the attack is over the flag times out.
+    for (const a of p1.outgoingAttacks()) a.delete();
+    executeTicks(game, game.config().tankSupportFlagTicks() + 5);
+    expect(front.hasStatus(UnitStatus.SupportingAttack)).toBe(false);
+  });
+
+  describe("auto-deploy to the front", () => {
+    function attackP2() {
+      p1.addTroops(1_000_000);
+      p2.addTroops(1_000_000);
+      // Small attack: a long-lived front that barely moves.
+      game.addExecution(new AttackExecution(20_000, p1, p2.id(), null));
+    }
+
+    function distToFront(tank: Unit): number {
+      let best = Infinity;
+      for (const a of p1.outgoingAttacks())
+        for (const t of a.borderTiles())
+          best = Math.min(best, game.manhattanDist(tank.tile(), t));
+      return best;
+    }
+
+    function idleTank(x: number, y: number): Unit {
+      const tank = buildTank(p1, x, y);
+      tank.setTargetTile(undefined);
+      return tank;
+    }
+
+    test("an idle tank drives to the front", () => {
+      const tank = idleTank(10, 50);
+      attackP2();
+      executeTicks(game, 150);
+      expect(distToFront(tank)).toBeLessThanOrEqual(
+        game.config().tankAuraRange(),
+      );
+      expect(tank.hasStatus(UnitStatus.SupportingAttack)).toBe(true);
+    });
+
+    test("stays home when there is no front", () => {
+      const tank = idleTank(10, 50);
+      executeTicks(game, 100);
+      expect(tank.tile()).toBe(game.ref(10, 50));
+    });
+
+    test("attacks on unclaimed land are not a front", async () => {
+      const g = await setup("plains", { infiniteGold: true }, [
+        new PlayerInfo("a", PlayerType.Human, null, "a"),
+      ]);
+      const a = g.player("a");
+      for (let x = 0; x < 30; x++)
+        for (let y = 0; y < 100; y++) a.conquer(g.ref(x, y));
+      a.buildUnit(UnitType.Factory, g.ref(10, 50), {});
+      g.addExecution(
+        new TankExecution({ owner: a, targetTile: g.ref(10, 50) }),
+      );
+      g.executeNextTick();
+      const [tank] = a.units(UnitType.Tank);
+      a.addTroops(1_000_000);
+      g.addExecution(new AttackExecution(20_000, a, null, null));
+      for (let i = 0; i < 100; i++) g.executeNextTick();
+      expect(tank.tile()).toBe(g.ref(10, 50));
+    });
+
+    test("a player's order wins, then the tank holds", () => {
+      const tank = idleTank(10, 50);
+      attackP2();
+      executeTicks(game, 3);
+      game.addExecution(
+        new MoveWarshipExecution(p1, [tank.id()], game.ref(5, 20)),
+      );
+      executeTicks(game, 140);
+      expect(tank.tile()).toBe(game.ref(5, 20));
+      // Still holding well inside the hold window.
+      executeTicks(game, game.config().tankManualHoldTicks() / 2);
+      expect(tank.tile()).toBe(game.ref(5, 20));
+      // Hold over: back to the front.
+      executeTicks(game, game.config().tankManualHoldTicks() + 200);
+      expect(distToFront(tank)).toBeLessThanOrEqual(
+        game.config().tankAuraRange(),
+      );
+    });
+
+    test("tanks spread out along the front", () => {
+      const tanks = [idleTank(10, 50), idleTank(11, 50), idleTank(12, 50)];
+      attackP2();
+      executeTicks(game, 200);
+      const ys = tanks.map((t) => game.y(t.tile()));
+      for (let i = 0; i < ys.length; i++)
+        for (let j = i + 1; j < ys.length; j++) {
+          const d = game.euclideanDistSquared(tanks[i].tile(), tanks[j].tile());
+          expect(d).toBeGreaterThan(4 * 4);
+        }
+    });
+
+    test("can be turned off", () => {
+      game.config().tankAutoFront = () => false;
+      const tank = idleTank(10, 50);
+      attackP2();
+      executeTicks(game, 150);
+      expect(tank.tile()).toBe(game.ref(10, 50));
+    });
+
+    test("survives a snapshot round trip while deploying", async () => {
+      idleTank(10, 50);
+      attackP2();
+      executeTicks(game, 30);
+      await expectSnapshotRoundTrip(game, "plains", 60);
     });
   });
 

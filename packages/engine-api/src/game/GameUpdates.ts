@@ -212,6 +212,7 @@ export interface UnitUpdate {
   trainType?: TrainType; // Only for trains
   loaded?: boolean; // Only for trains
   samUpgrade?: SamLauncherState;
+  statusFlags?: number; // UnitStatus bits (fork); always set by the engine
 }
 
 export interface AttackUpdate {

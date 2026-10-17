@@ -209,6 +209,18 @@ export enum UnitType {
   Factory = "Factory",
   // Fork. Appended: UnitType is positional on the wire.
   Tank = "Tank",
+  CivicCenter = "Civic Center",
+}
+
+// Fork: per-unit status bits, set by executions and drawn by the client's
+// status-indicator registry (src/client/render/UnitStatusIndicators.ts).
+// A new indicator = a new bit here + one registry entry. Bits are stored in
+// snapshots and replays, so only append.
+export enum UnitStatus {
+  // A building that needs upkeep could not pay it and is not working.
+  NoFunds = 1 << 0,
+  // A tank whose aura is boosting an attack right now.
+  SupportingAttack = 1 << 1,
 }
 
 export enum TrainType {
@@ -239,6 +251,7 @@ export const Structures = unitTypeGroup([
   UnitType.MissileSilo,
   UnitType.Port,
   UnitType.Factory,
+  UnitType.CivicCenter,
 ] as const);
 
 export const BuildMenus = unitTypeGroup([

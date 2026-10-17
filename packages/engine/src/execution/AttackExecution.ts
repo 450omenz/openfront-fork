@@ -23,7 +23,7 @@ import {
 import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
 import { AttackLogicInput } from "../configuration/EngineConfig";
-import { Attack, Execution, Game, Player } from "../game/Game";
+import { Attack, Execution, Game, Player, Unit } from "../game/Game";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
 import type {
   ExecRecord,
@@ -356,6 +356,32 @@ export class AttackExecution implements Execution {
     }
   }
 
+  // Fork: is an attacker's tank in aura range of this tile? Tanks that are get
+  // stamped so they can show their "supporting the front" effect.
+  private tankSupport(tile: TileRef): boolean {
+    const range = this.mg.config().tankAuraRange();
+    if (!this.mg.hasUnitNearby(tile, range, UnitType.Tank, this._owner.id())) {
+      return false;
+    }
+    const now = this.mg.ticks();
+    for (const { unit } of this.mg.nearbyUnits(tile, range, UnitType.Tank)) {
+      if (unit.owner() === this._owner) (unit as Unit).markSupport(now);
+    }
+    return true;
+  }
+
+  // Fork: population density of this tile and of the defender's land.
+  private density(
+    defender: Player,
+    tile: TileRef,
+  ): { tileWeight: number; totalWeight: number } {
+    const density = this.mg.config().populationDensity();
+    return {
+      tileWeight: density.tileWeight(this.mg, defender, tile),
+      totalWeight: density.totalWeight(this.mg, defender),
+    };
+  }
+
   private attackLogicInput(
     attackTroops: number,
     tile: TileRef,
@@ -391,16 +417,10 @@ export class AttackExecution implements Execution {
               isTraitor: defender.isTraitor(),
               isDisconnectedTeammate:
                 defender.isDisconnected() && this._owner.isOnSameTeam(defender),
+              ...this.density(defender, tile),
             },
       defenderHasDefensePost,
-      attackerHasTankSupport:
-        defender !== null &&
-        this.mg.hasUnitNearby(
-          tile,
-          this.mg.config().tankAuraRange(),
-          UnitType.Tank,
-          this._owner.id(),
-        ),
+      attackerHasTankSupport: defender !== null && this.tankSupport(tile),
       falloutRatio: this.mg.hasFallout(tile)
         ? this.mg.numTilesWithFallout() / this.mg.numLandTiles()
         : null,

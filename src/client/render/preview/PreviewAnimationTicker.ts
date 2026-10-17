@@ -812,5 +812,6 @@ function createBaseUnitState(
     samUpgradeStartRange: null,
     samUpgradeTargetLevel: null,
     samUpgradeDuration: null,
+    statusFlags: 0,
   };
 }

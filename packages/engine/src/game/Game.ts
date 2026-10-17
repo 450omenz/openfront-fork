@@ -25,6 +25,7 @@ import {
   TrajectoryTile,
   TransportShipState,
   UnitInfo,
+  UnitStatus,
   UnitType,
   WarshipState,
 } from "@openfront/engine-api/game/GameTypes";
@@ -111,6 +112,8 @@ export interface UnitParamsMap {
   [UnitType.SAMLauncher]: Record<string, never>;
 
   [UnitType.City]: Record<string, never>;
+
+  [UnitType.CivicCenter]: Record<string, never>;
 
   [UnitType.Tank]: {
     // Where the tank drives after rolling out of its factory.
@@ -291,6 +294,13 @@ export interface Unit extends UnitLike {
 
   // Construction phase on structures
   isUnderConstruction(): boolean;
+  // UnitStatus bits (fork). setStatus emits an update only on change.
+  statusFlags(): number;
+  hasStatus(flag: UnitStatus): boolean;
+  setStatus(flag: UnitStatus, on: boolean): void;
+  // Tanks (fork): last tick this tank's aura boosted a conquered tile.
+  lastSupportTick(): Tick;
+  markSupport(tick: Tick): void;
   setUnderConstruction(underConstruction: boolean): void;
 
   // Upgradable Structures

@@ -124,6 +124,7 @@ export interface UnitState {
   samUpgradeStartRange: number | null;
   samUpgradeTargetLevel: number | null;
   samUpgradeDuration: number | null;
+  statusFlags: number; // UnitStatus bits (fork)
 }
 
 /** Minimal dead-unit data needed by the FX pass. */

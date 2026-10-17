@@ -116,6 +116,10 @@ const ICON_SIZE_MIN = 40;
 const ICON_SIZE_MAX = 70;
 const ICON_SIZE_STEP = 5;
 
+const UNIT_SIZE_MIN = 0.5;
+const UNIT_SIZE_MAX = 2;
+const UNIT_SIZE_STEP = 0.05;
+
 const HIGHLIGHT_FILL_MIN = 0;
 const HIGHLIGHT_FILL_MAX = 1;
 const HIGHLIGHT_FILL_STEP = 0.01;
@@ -321,6 +325,15 @@ export class GraphicsAdvancedSettings extends LitElement {
     this.requestUpdate();
   }
 
+  private patchUnit(patch: Partial<GraphicsOverrides["unit"]>) {
+    const current = this.userSettings.graphicsOverrides();
+    this.writeOverrides({
+      ...current,
+      unit: { ...current.unit, ...patch },
+    });
+    this.requestUpdate();
+  }
+
   private patchMapOverlay(patch: Partial<GraphicsOverrides["mapOverlay"]>) {
     const current = this.userSettings.graphicsOverrides();
     this.writeOverrides({
@@ -505,6 +518,21 @@ export class GraphicsAdvancedSettings extends LitElement {
     const value = sliderValue(event);
     if (value === null) return;
     this.patchStructure({ iconSize: value });
+  }
+
+  // ---- Units ----
+
+  private currentUnitSize(): number {
+    return (
+      this.userSettings.graphicsOverrides().unit?.sizeMultiplier ??
+      renderDefaults.unit.sizeMultiplier
+    );
+  }
+
+  private onUnitSizeChange(event: Event) {
+    const value = sliderValue(event);
+    if (value === null) return;
+    this.patchUnit({ sizeMultiplier: value });
   }
 
   private currentClassicIcons(): boolean {
@@ -1129,6 +1157,21 @@ export class GraphicsAdvancedSettings extends LitElement {
         .checked=${!this.currentDarkNames()}
         @change=${this.onToggleNamesColored}
       ></setting-toggle>
+
+      <!-- 🚢 Units -->
+      ${GraphicsAdvancedSettings.section("graphics_setting.section_units")}
+      <setting-slider
+        label=${translateText("graphics_setting.unit_size_label")}
+        description=${translateText("graphics_setting.unit_size_desc")}
+        id="unit-size-slider"
+        min=${UNIT_SIZE_MIN}
+        max=${UNIT_SIZE_MAX}
+        step=${UNIT_SIZE_STEP}
+        unit="×"
+        .formatValue=${(v: number) => v.toFixed(2)}
+        .value=${this.currentUnitSize()}
+        @change=${this.onUnitSizeChange}
+      ></setting-slider>
 
       <!-- 🏰 Structure icons -->
       ${GraphicsAdvancedSettings.section(

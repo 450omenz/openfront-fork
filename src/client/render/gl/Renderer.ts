@@ -32,6 +32,7 @@ import type {
 import { Camera } from "./Camera";
 import { GLUnavailableError, initGL } from "./initGL";
 import { BarPass } from "./passes/BarPass";
+import { StatusIndicatorPass } from "./passes/StatusIndicatorPass";
 import { BorderComputePass } from "./passes/BorderComputePass";
 import { BorderStampPass } from "./passes/BorderStampPass";
 import { CoordinateGridPass } from "./passes/CoordinateGridPass";
@@ -139,6 +140,7 @@ export class GPURenderer {
   private crosshairPass: CrosshairPass;
   private railroadPass: RailroadPass;
   private barPass: BarPass;
+  private statusIndicatorPass: StatusIndicatorPass; // fork
   private worldTextPass: WorldTextPass;
   private selectionBoxPass: SelectionBoxPass;
   private moveIndicatorPass: MoveIndicatorPass;
@@ -588,6 +590,11 @@ export class GPURenderer {
     );
     this.fxPass = new FxPass(gl, header, this.settings, config);
     this.barPass = new BarPass(gl, header, this.settings, config);
+    this.statusIndicatorPass = new StatusIndicatorPass(
+      gl,
+      header.mapWidth,
+      this.settings,
+    );
     this.worldTextPass = new WorldTextPass(gl, this.settings, config);
     this.worldTextPass.setMapWidth(this.mapW);
     this.selectionBoxPass = new SelectionBoxPass(gl);
@@ -911,6 +918,7 @@ export class GPURenderer {
     this.unitPass.updateUnits(units, gameTick);
     this.samRadiusPass.setTick(gameTick);
     this.barPass.updateBars(units, this.lastStructures, gameTick);
+    this.statusIndicatorPass.update(units, this.lastStructures);
     this.pointLightPass.updateLights(units);
     this.heatManager.decayHeat();
   }
@@ -954,6 +962,7 @@ export class GPURenderer {
     this.structureLevelPass.updateStructures(units);
     this.samRadiusPass.updateStructures(units);
     this.unitPass.setStructures(units);
+    this.statusIndicatorPass.update(this.lastUnits, units);
     const posts: { x: number; y: number; ownerID: number }[] = [];
     const w = this.mapW;
     for (const u of units.values()) {
@@ -1363,7 +1372,7 @@ export class GPURenderer {
     this.spawnOverlayPass.draw(cam);
     if (pe.borderStamp) this.borderStampPass.draw(cam);
     if (pe.railroad) this.railroadPass.draw(cam, zoom);
-    if (pe.unit) this.unitPass.drawGround(cam);
+    if (pe.unit) this.unitPass.drawGround(cam, zoom);
     if (pe.falloutBloom) this.bloomPass.draw(cam, this.frameTick);
     this.samRadiusPass.draw(cam);
     this.rangeCirclePass.draw(cam);
@@ -1373,7 +1382,8 @@ export class GPURenderer {
     if (pe.structure) this.structureLevelPass.draw(cam, zoom);
     // Small-player glow draws after structures so buildings can't hide it.
     this.smallPlayerGlowPass.draw(cam);
-    if (pe.bar) this.barPass.draw(cam);
+    if (pe.bar) this.barPass.draw(cam, zoom);
+    this.statusIndicatorPass.draw(cam, zoom);
     this.updateSelectionBox();
     this.selectionBoxPass.draw(cam, this.frameTick);
     this.moveIndicatorPass.draw(cam, zoom);
@@ -1382,7 +1392,7 @@ export class GPURenderer {
     // Spiral vortexes sit above the plain trails, below the missiles that
     // trail them. Skipped in alt view — the strategic overlay stays effects-free.
     if (!this.altView) this.spiralRibbonPass.draw(cam);
-    if (pe.unit) this.unitPass.drawMissiles(cam);
+    if (pe.unit) this.unitPass.drawMissiles(cam, zoom);
 
     if (pe.fx) {
       this.fxPass.tick();
@@ -1517,6 +1527,7 @@ export class GPURenderer {
     this.nukeTrajectoryPass.dispose();
     this.nukeTelegraphPass.dispose();
     this.barPass.dispose();
+    this.statusIndicatorPass.dispose();
     disposeGPUResources(this.gl, this.res);
     this.gl.deleteTexture(this.paletteTex);
     this.gl.deleteTexture(this.effectTex);

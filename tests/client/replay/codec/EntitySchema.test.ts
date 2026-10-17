@@ -146,6 +146,7 @@ const baseUnit: UnitState = {
   samUpgradeStartRange: null,
   samUpgradeTargetLevel: null,
   samUpgradeDuration: null,
+  statusFlags: 0,
 };
 
 const unitAlternatives: { [K in keyof UnitFields]: UnitFields[K] } = {
@@ -175,6 +176,7 @@ const unitAlternatives: { [K in keyof UnitFields]: UnitFields[K] } = {
   samUpgradeStartRange: 70.5,
   samUpgradeTargetLevel: 2,
   samUpgradeDuration: 150,
+  statusFlags: 3,
 };
 
 function roundTripFull<T>(

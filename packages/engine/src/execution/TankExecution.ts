@@ -1,5 +1,5 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
-import { UnitType } from "@openfront/engine-api/game/GameTypes";
+import { UnitStatus, UnitType } from "@openfront/engine-api/game/GameTypes";
 import {
   zInt,
   zPlayerRef,
@@ -23,6 +23,7 @@ import type {
   SnapshotReader,
   SnapshotWriter,
 } from "../snapshot/SnapshotContext";
+import { seekFront } from "./behaviors/FrontSeeker";
 import { ShellExecution } from "./ShellExecution";
 
 // One land A* per game, shared by every tank. Scratch buffers only (no state
@@ -43,6 +44,8 @@ function landPathfinder(mg: Game): AStarLandBounded {
 // Fork unit. A tank drives only on its owner's land; attacks the owner makes
 // near it get the spearhead bonus (see AttackExecution / attackLogic). It
 // shells hostile tanks in range, and is destroyed if its tile is overrun.
+// Left alone, it drives itself to the nearest front (autoDeploy); a player's
+// move order always wins, and the tank holds where it was sent for a while.
 export class TankExecution implements Execution {
   private mg: Game;
   private tank: Unit;
@@ -50,6 +53,10 @@ export class TankExecution implements Execution {
   private path: TileRef[] = [];
   private pathTarget: TileRef | undefined;
   private lastShellAttack = 0;
+  // The target autoDeploy chose, so a player's order can be told apart.
+  private autoTarget: TileRef | null = null;
+  // After a player's order arrives, autoDeploy waits until this tick.
+  private holdUntil = -1;
 
   constructor(private input: (UnitParams<UnitType.Tank> & OwnerComp) | Unit) {}
 
@@ -84,8 +91,16 @@ export class TankExecution implements Execution {
       this.tank.delete(true, here.isPlayer() ? (here as Player) : undefined);
       return;
     }
+    this.autoDeploy(ticks, owner);
     this.drive(ticks, owner);
     this.shoot(ticks, owner);
+    // Visual "supporting the front" flag while the aura is boosting attacks.
+    const since = ticks - this.tank.lastSupportTick();
+    this.tank.setStatus(
+      UnitStatus.SupportingAttack,
+      this.tank.lastSupportTick() >= 0 &&
+        since <= this.mg.config().tankSupportFlagTicks(),
+    );
   }
 
   private drive(ticks: number, owner: Player): void {
@@ -95,8 +110,13 @@ export class TankExecution implements Execution {
       this.pathTarget = undefined;
       return;
     }
+    if (this.tank.tile() === target) {
+      this.arrive(ticks, target); // includes orders to the tile it's on
+      return;
+    }
     if (target !== this.pathTarget && !this.planRoute(target, owner)) {
       this.tank.setTargetTile(undefined); // unreachable: stop
+      this.autoTarget = null;
       return;
     }
     if (ticks % this.mg.config().tankMoveInterval() !== 0) return;
@@ -107,9 +127,50 @@ export class TankExecution implements Execution {
     }
     this.tank.move(next);
     this.path.shift();
-    if (this.path.length === 0) {
+    if (this.path.length === 0) this.arrive(ticks, target);
+  }
+
+  private arrive(ticks: number, target: TileRef): void {
+    if (target !== this.autoTarget) {
+      // The player sent it here: hold before auto-deploy takes over again.
+      this.holdUntil = ticks + this.mg.config().tankManualHoldTicks();
+    }
+    this.tank.setTargetTile(undefined);
+    this.path = [];
+    this.pathTarget = undefined;
+    this.autoTarget = null;
+  }
+
+  // Send an idle tank to the nearest front, re-checked every seek interval.
+  // Fronts move as attacks advance, so an auto route is refreshed too.
+  private autoDeploy(ticks: number, owner: Player): void {
+    const config = this.mg.config();
+    if (!config.tankAutoFront()) return;
+    const target = this.tank.targetTile();
+    if (target !== undefined && target !== this.autoTarget) {
+      this.autoTarget = null; // a player's order: never override it
+      return;
+    }
+    if (ticks < this.holdUntil) return;
+    // Stagger tanks so they don't all search on the same tick.
+    const interval = config.tankFrontSeekInterval();
+    if ((ticks + this.tank.id()) % interval !== 0) return;
+
+    const result = seekFront(this.mg, owner, this.tank, {
+      inRange: config.tankAuraRange() / 2,
+      maxDistance: config.tankMaxMoveDistance(),
+      spread: config.tankFrontSpread(),
+      spreadTypes: [UnitType.Tank],
+    });
+    if (result.kind === "stage") {
+      if (result.tile !== target) {
+        this.autoTarget = result.tile;
+        this.tank.setTargetTile(result.tile);
+      }
+    } else if (target !== undefined) {
+      // At the front already, or the front is gone: stop here.
+      this.autoTarget = null;
       this.tank.setTargetTile(undefined);
-      this.pathTarget = undefined;
     }
   }
 
@@ -187,6 +248,8 @@ export class TankExecution implements Execution {
       path: [...this.path],
       pathTarget: this.pathTarget ?? null,
       lastShellAttack: this.lastShellAttack,
+      autoTarget: this.autoTarget,
+      holdUntil: this.holdUntil,
     });
   }
 
@@ -205,6 +268,8 @@ export class TankExecution implements Execution {
     this.path = [...s.path];
     this.pathTarget = s.pathTarget ?? undefined;
     this.lastShellAttack = s.lastShellAttack;
+    this.autoTarget = s.autoTarget;
+    this.holdUntil = s.holdUntil;
   }
 }
 
@@ -220,12 +285,18 @@ const TankExecutionStateSchema = z.object({
   path: z.array(zTile()),
   pathTarget: zTile().nullable(),
   lastShellAttack: zInt(),
+  autoTarget: zTile().nullable(),
+  holdUntil: zInt(),
 });
 type TankExecutionState = z.infer<typeof TankExecutionStateSchema>;
 
 export const TankExecutionSnapshot = execSnapshotType({
   name: "Tank",
-  version: 1,
+  version: 2,
+  migrations: {
+    // v1 tanks predate auto-deploy: treat them as idle, no hold.
+    1: (d) => ({ ...d, autoTarget: null, holdUntil: -1 }),
+  },
   schema: TankExecutionStateSchema,
   cls: () => TankExecution,
 });

@@ -622,6 +622,11 @@ const donateGoldRadialElement: MenuElement = {
   },
 };
 
+// Fork: tanks can be deconstructed alongside every structure.
+function isDeconstructable(type: UnitType): boolean {
+  return Structures.has(type) || type === UnitType.Tank;
+}
+
 export const deleteUnitElement: MenuElement = {
   id: Slot.Delete,
   name: "delete",
@@ -653,7 +658,7 @@ export const deleteUnitElement: MenuElement = {
         (unit) =>
           !unit.isUnderConstruction() &&
           unit.markedForDeletion() === false &&
-          Structures.has(unit.type()) &&
+          isDeconstructable(unit.type()) &&
           params.game.manhattanDist(unit.tile(), params.tile) <=
             DELETE_SELECTION_RADIUS,
       );
@@ -680,7 +685,7 @@ export const deleteUnitElement: MenuElement = {
         (unit) =>
           !unit.isUnderConstruction() &&
           unit.markedForDeletion() === false &&
-          Structures.has(unit.type()) &&
+          isDeconstructable(unit.type()) &&
           params.game.manhattanDist(unit.tile(), params.tile) <=
             DELETE_SELECTION_RADIUS,
       );

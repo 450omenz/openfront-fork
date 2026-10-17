@@ -22,6 +22,7 @@ const MAP_H = 50;
 
 function unit(overrides: Partial<UnitState> = {}): UnitState {
   return {
+    statusFlags: 0,
     id: 1,
     unitType: UT_ATOM_BOMB,
     ownerID: 7,

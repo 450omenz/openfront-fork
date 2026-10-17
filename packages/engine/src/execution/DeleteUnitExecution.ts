@@ -89,15 +89,32 @@ export class DeleteUnitExecution implements Execution {
       return;
     }
     if (this.unit.isOverdueDeletion()) {
+      // Fork: deconstruction refunds part of the price. Prices scale with
+      // how many the player owns, so the unit being removed is valued at
+      // what the newest one of its type cost (one fewer than owned now).
+      const refund = this.refund(this.unit);
       this.unit.delete(false);
+      if (refund > 0n) this.player.addGold(refund);
 
       this.mg.displayMessage(
-        `events_display.unit_voluntarily_deleted`,
+        refund > 0n
+          ? `events_display.unit_deconstructed_refund`
+          : `events_display.unit_voluntarily_deleted`,
         MessageType.UNIT_DESTROYED,
         this.player.id(),
+        refund > 0n ? refund : undefined,
+        refund > 0n ? { gold: Number(refund) } : undefined,
       );
       this.active = false;
     }
+  }
+
+  private refund(unit: Unit): bigint {
+    const paid = this.mg
+      .config()
+      .unitInfo(unit.type())
+      .cost(this.mg, this.player, -1);
+    return (paid * BigInt(this.mg.config().deconstructRefundPercent())) / 100n;
   }
 
   isActive(): boolean {

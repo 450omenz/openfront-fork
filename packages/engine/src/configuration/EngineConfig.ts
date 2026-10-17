@@ -33,6 +33,13 @@ export interface AttackLogicInput {
     isTraitor: boolean;
     /** Defender is disconnected and on the attacker's team. */
     isDisconnectedTeammate: boolean;
+    /**
+     * Fork: population density weight of this tile and of all the
+     * defender's land (PopulationDensity). Omitted = an even spread:
+     * 1 and numTiles.
+     */
+    tileWeight?: number;
+    totalWeight?: number;
   } | null;
   /** A defense post owned by the defender is in range of the tile. */
   defenderHasDefensePost: boolean;
@@ -166,6 +173,27 @@ export class EngineConfig extends Config {
   // Longest single move order, in tiles (bounds the land A* search box).
   tankMaxMoveDistance(): number {
     return 150;
+  }
+  // How long a tank keeps its "supporting the front" status after its aura
+  // last boosted a conquered tile.
+  tankSupportFlagTicks(): number {
+    return 15;
+  }
+  // Idle tanks drive themselves to the nearest front (fork).
+  tankAutoFront(): boolean {
+    return true;
+  }
+  // How often an idle tank looks for a front, in ticks.
+  tankFrontSeekInterval(): number {
+    return 20;
+  }
+  // After a player's move order arrives, the tank stays put this long.
+  tankManualHoldTicks(): number {
+    return 30 * 10;
+  }
+  // Auto-deployed tanks avoid staging within this many tiles of each other.
+  tankFrontSpread(): number {
+    return 8;
   }
   // Percent of worker gold income each tank costs in upkeep.
   tankUpkeepPercent(): number {
@@ -397,6 +425,12 @@ export class EngineConfig extends Config {
         };
       case UnitType.MissileSilo:
         return this.costWrapper(() => 1_000_000, UnitType.MissileSilo);
+      case UnitType.CivicCenter:
+        return this.costWrapper(
+          (numUnits: number) =>
+            Math.min(1_000_000, 250_000 + numUnits * 125_000),
+          UnitType.CivicCenter,
+        );
       case UnitType.DefensePost:
         return this.costWrapper(
           (numUnits: number) => Math.min(250_000, (numUnits + 1) * 50_000),
@@ -610,8 +644,15 @@ export class EngineConfig extends Config {
     const traitorLossMod = defender.isTraitor ? this.traitorDefenseDebuff() : 1;
     const traitorCostMod = defender.isTraitor ? this.traitorSpeedDebuff() : 1;
 
-    // Defender loses its average troops-per-tile.
-    const defenderTroopLoss = defender.troops / defender.numTiles;
+    // Defender loses the troops living on this tile: more around cities
+    // (population density, fork), its average troops-per-tile without.
+    // Written as troops × w / W so w = 1, W = numTiles is bit-identical to
+    // the old troops / numTiles.
+    const defenderTroopLoss = Math.min(
+      defender.troops,
+      (defender.troops * (defender.tileWeight ?? 1)) /
+        (defender.totalWeight ?? defender.numTiles),
+    );
 
     // Two ratios drive the attacker's loss: how outnumbered the attack is
     // (defender army / attack stack, clamped: bigger pushes pay less per
@@ -782,6 +823,26 @@ export class EngineConfig extends Config {
     const steepness = 2;
     const normalizedExcess = excessTroops / maxTroops;
     return scalingFactor * (1 - exp(-steepness * normalizedExcess));
+  }
+
+  // Fork: nukeDeathFactor for the population on one tile. tileWeight and
+  // weightLeft are population density weights (PopulationDensity): the
+  // tile's, and the player's land not yet hit by this blast. relDensity is
+  // the tile's density relative to the player's average, for MIRV warheads
+  // whose curve doesn't depend on tile counts. With no density sources
+  // (weights 1, relDensity 1) this is exactly nukeDeathFactor.
+  nukeDensityDeaths(
+    nukeType: NukeType,
+    humans: number,
+    tileWeight: number,
+    weightLeft: number,
+    relDensity: number,
+    maxTroops: number,
+  ): number {
+    if (nukeType !== UnitType.MIRVWarhead) {
+      return (5 * humans * tileWeight) / Math.max(1, weightLeft);
+    }
+    return this.nukeDeathFactor(nukeType, humans, 1, maxTroops) * relDensity;
   }
 
   shellLifetime(): number {

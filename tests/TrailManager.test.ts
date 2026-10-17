@@ -49,6 +49,7 @@ function makeUnit(
     samUpgradeStartRange: null,
     samUpgradeTargetLevel: null,
     samUpgradeDuration: null,
+    statusFlags: 0,
   };
 }
 

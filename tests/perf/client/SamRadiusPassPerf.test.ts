@@ -149,6 +149,7 @@ function createMockSAMStructures(
       samUpgradeStartRange: isUpgrading ? 70 + (level - 1) * 16 : null,
       samUpgradeTargetLevel: isUpgrading ? level + 1 : null,
       samUpgradeDuration: isUpgrading ? 45 : null,
+      statusFlags: 0,
     };
 
     structures.set(state.id, state);

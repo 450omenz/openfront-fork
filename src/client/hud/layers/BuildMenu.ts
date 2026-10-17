@@ -38,6 +38,7 @@ const portIcon = assetUrl("images/PortIcon.svg");
 const samlauncherIcon = assetUrl("images/SamLauncherIconWhite.svg");
 const shieldIcon = assetUrl("images/ShieldIconWhite.svg");
 const tankIcon = assetUrl("images/TankIconWhite.svg");
+const civicCenterIcon = assetUrl("images/CivicCenterIconWhite.svg");
 
 export interface BuildItemDisplay {
   unitType: PlayerBuildableUnitType;
@@ -124,6 +125,13 @@ export const buildTable: BuildItemDisplay[][] = [
       icon: factoryIcon,
       description: "build_menu.desc.factory",
       key: "unit_type.factory",
+      countable: true,
+    },
+    {
+      unitType: UnitType.CivicCenter,
+      icon: civicCenterIcon,
+      description: "build_menu.desc.civic_center",
+      key: "unit_type.civic_center",
       countable: true,
     },
   ],

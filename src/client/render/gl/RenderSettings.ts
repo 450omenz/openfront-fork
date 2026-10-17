@@ -260,6 +260,11 @@ export interface RenderSettings {
   };
   unit: {
     unitSize: number;
+    // Fork: sprite scaling, see UnitScale.ts.
+    sizeMultiplier: number; // user "Unit size" setting (1 = default)
+    minScreenPx: number; // a unit is never drawn smaller than this on screen
+    maxScreenPx: number; // ...or larger than this
+    typeScale: Record<string, number>; // per unit type name, default 1
     flickerSpeed: number;
     angryR: number;
     angryG: number;

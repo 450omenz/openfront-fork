@@ -7,6 +7,12 @@ import { MinHeap } from "./PriorityQueue";
 // the caller (e.g. "land owned by the tank's owner").
 //
 // Deterministic: integer costs, fixed neighbor order (N, S, W, E).
+//
+// Ties between equally short paths break toward the straight start-goal
+// line (same cross-product tie-breaker as AStar.WaterBounded), so a diagonal
+// order becomes a staircase instead of an L. Paths stay shortest; tanks just
+// look like they drive diagonally (see client TankHeading).
+const COST_SCALE = 1000;
 export class AStarLandBounded {
   private stamp = 1;
   private readonly closedStamp: Uint32Array;
@@ -63,10 +69,19 @@ export class AStarLandBounded {
     queue.clear();
     const startL = local(sx, sy);
     const goalL = local(gx, gy);
+    const dxGoal = gx - sx;
+    const dyGoal = gy - sy;
+    const crossNorm = Math.max(1, Math.abs(dxGoal) + Math.abs(dyGoal));
+    // < COST_SCALE, so it only ever orders paths of equal length.
+    const tieBreak = (x: number, y: number): number =>
+      Math.floor(
+        (Math.abs(dxGoal * (y - gy) - dyGoal * (x - gx)) * (COST_SCALE - 1)) /
+          (crossNorm * crossNorm),
+      );
     this.gScore[startL] = 0;
     this.gScoreStamp[startL] = stamp;
     this.cameFrom[startL] = -1;
-    queue.push(startL, Math.abs(sx - gx) + Math.abs(sy - gy));
+    queue.push(startL, (Math.abs(sx - gx) + Math.abs(sy - gy)) * COST_SCALE);
 
     while (!queue.isEmpty()) {
       const cur = queue.pop();
@@ -90,7 +105,11 @@ export class AStarLandBounded {
         this.gScore[nl] = g;
         this.gScoreStamp[nl] = stamp;
         this.cameFrom[nl] = cur;
-        queue.push(nl, g + Math.abs(nx - gx) + Math.abs(ny - gy));
+        queue.push(
+          nl,
+          (g + Math.abs(nx - gx) + Math.abs(ny - gy)) * COST_SCALE +
+            tieBreak(nx, ny),
+        );
       }
     }
     return null;

@@ -37,10 +37,14 @@ export interface UnitLike {
   isActive(): boolean;
   isUnderConstruction(): boolean;
   level(): number;
+  // UnitStatus bits (fork).
+  statusFlags(): number;
 }
 
 export interface GameLike extends GameMap {
   owner(ref: TileRef): PlayerLike | TerraNullius;
+  // Fork: memo key for per-tick rules (PopulationDensity).
+  ticks(): number;
   anyUnitNearby(
     tile: TileRef,
     searchRange: number,

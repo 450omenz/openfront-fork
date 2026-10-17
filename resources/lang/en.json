@@ -190,6 +190,7 @@
     "desc": {
       "atom_bomb": "Small explosion",
       "city": "Increases max population",
+      "civic_center": "Raises troop regeneration by 12% (up to 5 Civic Centers). Costs 1,500 gold every 5 seconds; stops working and shows a warning when you can't pay.",
       "defense_post": "Increases defenses of nearby borders",
       "factory": "Creates railroads and spawns trains",
       "hydrogen_bomb": "Large explosion",
@@ -901,6 +902,7 @@
     "sent_gold_to_player": "Sent {gold} gold to {name}",
     "sent_troops_to_player": "Sent {troops} troops to {name}",
     "trade_ship_captured": "Your trade ship was captured by {name}",
+    "unit_deconstructed_refund": "Unit deconstructed, {gold} gold refunded",
     "unit_destroyed": "Your {unit} was destroyed",
     "unit_voluntarily_deleted": "Unit voluntarily deleted",
     "wants_to_renew_alliance": "{name} wants to renew your alliance"
@@ -1139,12 +1141,15 @@
     "section_name_labels": "Name Labels",
     "section_structure_icons": "Structure Icons",
     "section_terrain": "Terrain",
+    "section_units": "Units",
     "structure_dots_desc": "Collapse structure icons into small dots when zoomed out",
     "structure_dots_label": "Structure dots",
     "territory_alpha_desc": "How opaque the territory fill is (lower lets terrain show through)",
     "territory_alpha_label": "Territory opacity",
     "territory_sat_desc": "How vivid the territory fill colors are (lower mutes them)",
-    "territory_sat_label": "Territory saturation"
+    "territory_sat_label": "Territory saturation",
+    "unit_size_desc": "How large ships, tanks and trains are drawn. They also stay readable when zoomed far out and don't grow huge when zoomed in",
+    "unit_size_label": "Unit size"
   },
   "heads_up_message": {
     "catching_up": "Catching up...",
@@ -1780,6 +1785,7 @@
     "kick_confirm": "Kick {name}?\n\nThey won't be able to rejoin this game.",
     "kicked": "Already kicked",
     "moderation": "Moderation",
+    "population_density": "Population here: {value}× average",
     "report": "Report",
     "report_reason_botting": "Botting",
     "report_reason_griefing": "Griefing",
@@ -2101,7 +2107,7 @@
     "visit_store": "Visit store"
   },
   "radial_menu": {
-    "delete_unit_description": "Click to delete the nearest unit",
+    "delete_unit_description": "Deconstruct the nearest building or tank (50% refund)",
     "delete_unit_title": "Delete Unit",
     "upgrade_x": "Upgrade x{amount}"
   },
@@ -2500,6 +2506,7 @@
     "atom_bomb": "Atom Bomb",
     "boat": "Boat",
     "city": "City",
+    "civic_center": "Civic Center",
     "defense_post": "Defense Post",
     "factory": "Factory",
     "hydrogen_bomb": "Hydrogen Bomb",
@@ -2562,6 +2569,8 @@
     "build_atom_bomb_desc": "Build an Atom Bomb under your cursor.",
     "build_city": "Build City",
     "build_city_desc": "Build a City under your cursor.",
+    "build_civic_center": "Build Civic Center",
+    "build_civic_center_desc": "Build a Civic Center under your cursor.",
     "build_controls": "Build Controls",
     "build_defense_post": "Build Defense Post",
     "build_defense_post_desc": "Build a Defense Post under your cursor.",

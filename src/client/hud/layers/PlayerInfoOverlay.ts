@@ -96,7 +96,9 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
 
   @state()
   private player: PlayerView | null = null;
-  /** The tile the panel was shown for; the action buttons act on it. */
+  /** The tile the panel was shown for; the action buttons act on it.
+   *  Reactive so the population density line follows the cursor (fork). */
+  @state()
   private tile: TileRef | null = null;
   /** What I can do to the hovered player, for its action buttons. */
   @state() private playerActions: {
@@ -717,6 +719,7 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
             ${this.renderPlayerNameIcons(playerIcons)} ${betrayalHtml ?? ""}
             ${allianceHtml ?? ""}
           </div>
+          ${this.renderPopulationDensity(player)}
           <div class="flex gap-0.5 lg:gap-1 items-center mt-0.5">
             ${this.displayUnitCount(player, UnitType.City, cityIcon)}
             ${this.displayUnitCount(player, UnitType.Factory, factoryIcon)}
@@ -739,6 +742,24 @@ export class PlayerInfoOverlay extends LitElement implements Controller {
           : ""}
       </div>
     `;
+  }
+
+  // Fork: how crowded the hovered tile is compared with the player's
+  // average tile. Attacks and nukes kill people where they live, so this
+  // shows where a hit hurts most (see engine-lib/game/PopulationDensity.ts).
+  private renderPopulationDensity(player: PlayerView) {
+    if (this.tile === null || this.game.owner(this.tile) !== player) {
+      return "";
+    }
+    const rel = this.game
+      .config()
+      .populationDensity()
+      .relativeDensity(this.game, player, this.tile);
+    return html`<div class="text-xs font-mono text-gray-400 mt-0.5">
+      ${translateText("player_panel.population_density", {
+        value: rel.toFixed(1),
+      })}
+    </div>`;
   }
 
   // Right side: what I can do to the player, each with its keybind. Request

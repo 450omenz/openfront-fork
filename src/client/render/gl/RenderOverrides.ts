@@ -32,6 +32,9 @@ export function applyGraphicsOverrides(
   if (overrides.structure?.iconSize !== undefined) {
     settings.structure.iconSize = overrides.structure.iconSize;
   }
+  if (overrides.unit?.sizeMultiplier !== undefined) {
+    settings.unit.sizeMultiplier = overrides.unit.sizeMultiplier;
+  }
   if (overrides.structure?.classicIcons ?? true) {
     // Classic look (default): lighter player-colored shape behind a darkened
     // player-colored icon glyph (matching the old canvas renderer's

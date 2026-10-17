@@ -36,6 +36,12 @@ export const GraphicsOverridesSchema = z
         showDots: z.boolean(),
       })
       .partial(),
+    // Fork: unit sprite size, see render/gl/UnitScale.ts.
+    unit: z
+      .object({
+        sizeMultiplier: z.number(),
+      })
+      .partial(),
     mapOverlay: z
       .object({
         navalHighlight: z.boolean(),

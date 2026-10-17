@@ -8,6 +8,7 @@ import {
   TrainType,
   TrajectoryTile,
   TransportShipState,
+  UnitStatus,
   UnitType,
   WarshipState,
 } from "@openfront/engine-api/game/GameTypes";
@@ -64,6 +65,8 @@ export class UnitImpl implements Unit {
   // Nuke only
   private _deletionAt: number | null = null;
   private _samLauncherState: SamLauncherState | undefined;
+  private _statusFlags = 0;
+  private _lastSupportTick = -1;
 
   constructor(
     private _type: UnitType,
@@ -126,6 +129,7 @@ export class UnitImpl implements Unit {
       case UnitType.SAMLauncher:
       case UnitType.City:
       case UnitType.Factory:
+      case UnitType.CivicCenter:
         this.mg.stats().unitBuild(_owner, this._type);
     }
   }
@@ -196,6 +200,7 @@ export class UnitImpl implements Unit {
       hasTrainStation: this._hasTrainStation,
       trainType: this._trainType,
       loaded: this._loaded,
+      statusFlags: this._statusFlags,
     };
     return update;
   }
@@ -231,6 +236,29 @@ export class UnitImpl implements Unit {
   health(): number {
     return Number(this._health);
   }
+
+  statusFlags(): number {
+    return this._statusFlags;
+  }
+
+  hasStatus(flag: UnitStatus): boolean {
+    return (this._statusFlags & flag) !== 0;
+  }
+
+  lastSupportTick(): Tick {
+    return this._lastSupportTick;
+  }
+
+  markSupport(tick: Tick): void {
+    this._lastSupportTick = tick;
+  }
+
+  setStatus(flag: UnitStatus, on: boolean): void {
+    const next = on ? this._statusFlags | flag : this._statusFlags & ~flag;
+    if (next === this._statusFlags) return;
+    this._statusFlags = next;
+    this.mg.addUpdate(this.toUpdate());
+  }
   hasHealth(): boolean {
     return this.info().maxHealth !== undefined;
   }
@@ -256,6 +284,7 @@ export class UnitImpl implements Unit {
       case UnitType.SAMLauncher:
       case UnitType.City:
       case UnitType.Factory:
+      case UnitType.CivicCenter:
         this.mg.stats().unitCapture(newOwner, this._type);
         this.mg.stats().unitLose(this._owner, this._type);
         break;
@@ -390,6 +419,7 @@ export class UnitImpl implements Unit {
         case UnitType.Warship:
         case UnitType.Tank:
         case UnitType.Factory:
+        case UnitType.CivicCenter:
           this.mg.stats().unitDestroy(destroyer, this._type);
           this.mg.stats().unitLose(this.owner(), this._type);
           break;
@@ -806,6 +836,8 @@ export class UnitImpl implements Unit {
         this._targetPlayer !== undefined ? w.owner(this._targetPlayer) : null,
       targetUnit: w.unitOrNull(this._targetUnit),
       health: this._health,
+      statusFlags: this._statusFlags,
+      lastSupportTick: this._lastSupportTick,
       // Nested states are written field by field, in schema order: the live
       // objects' key order varies with how they were built, a restore's
       // does not, and key order is part of the bytes.
@@ -876,6 +908,8 @@ export class UnitImpl implements Unit {
       s.targetPlayer !== null ? r.owner(s.targetPlayer) : undefined;
     this._targetUnit = r.unitOrNull(s.targetUnit) ?? undefined;
     this._health = s.health;
+    this._statusFlags = s.statusFlags;
+    this._lastSupportTick = s.lastSupportTick;
     this._transportShipState = s.transportShipState
       ? { ...s.transportShipState }
       : undefined;
@@ -914,7 +948,11 @@ export class UnitImpl implements Unit {
 
 export const UnitSnapshot = snapshotType({
   name: "Unit",
-  version: 1,
+  version: 2,
+  migrations: {
+    // v1 units predate status flags and tank support tracking.
+    1: (d) => ({ ...d, statusFlags: 0, lastSupportTick: -1 }),
+  },
   schema: z.object({
     id: zInt(),
     type: UnitTypeSchema,
@@ -926,6 +964,8 @@ export const UnitSnapshot = snapshotType({
     targetPlayer: zPlayerRef().nullable(),
     targetUnit: zRef().nullable(),
     health: z.bigint(),
+    statusFlags: zInt(),
+    lastSupportTick: zInt(),
     transportShipState: z
       .object({ isRetreating: z.boolean(), troops: zNum() })
       .nullable(),

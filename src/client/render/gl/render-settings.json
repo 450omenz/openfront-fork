@@ -151,6 +151,10 @@
       "Missile Silo": {
         "scale": 1.55,
         "iconFill": 0.85
+      },
+      "Civic Center": {
+        "scale": 1.08,
+        "iconFill": 0.85
       }
     },
     "highlightOutlineWidth": 0.04,
@@ -203,6 +207,16 @@
   },
   "unit": {
     "unitSize": 13,
+    "sizeMultiplier": 1,
+    "minScreenPx": 14,
+    "maxScreenPx": 56,
+    "typeScale": {
+      "Tank": 1,
+      "Warship": 1,
+      "Transport": 1,
+      "Trade Ship": 1,
+      "Train": 1
+    },
     "flickerSpeed": 0.3,
     "angryR": 0.784,
     "angryG": 0,

@@ -507,8 +507,8 @@ export class CosmeticPreviewRenderer {
       this.unitPass.updateUnits(this.unitMap, tick);
     }
     if (snapshot.units.length > 0) {
-      this.unitPass.drawGround(camMat);
-      this.unitPass.drawMissiles(camMat);
+      this.unitPass.drawGround(camMat, this.camera.zoom);
+      this.unitPass.drawMissiles(camMat, this.camera.zoom);
     }
   }
 

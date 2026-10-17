@@ -18,6 +18,7 @@ import { maxHealthWithVeterancy } from "@openfront/engine-lib/game/Veterancy";
 import type { RendererConfig, UnitState } from "../../types";
 import { UT_MISSILE_SILO, UT_SAM_LAUNCHER } from "../../types";
 import type { RenderSettings } from "../RenderSettings";
+import { screenScale, typeScale } from "../UnitScale";
 import { createProgram } from "../utils/GlUtils";
 
 import barFragSrc from "../shaders/bar/bar.frag.glsl?raw";
@@ -27,7 +28,8 @@ import barVertSrc from "../shaders/bar/bar.vert.glsl?raw";
 // Constants
 // ---------------------------------------------------------------------------
 
-const FLOATS_PER_INSTANCE = 3; // x, y, progress
+// x, y, progress, unit scale (0 = structure bar: fixed size; see UnitScale.ts)
+const FLOATS_PER_INSTANCE = 4;
 const BYTES_PER_INSTANCE = FLOATS_PER_INSTANCE * 4;
 
 // ---------------------------------------------------------------------------
@@ -52,6 +54,7 @@ export class BarPass {
   private uSolid: WebGLUniformLocation;
   private uSolidColor: WebGLUniformLocation;
   private uPipStride: WebGLUniformLocation;
+  private uScreenScale: WebGLUniformLocation;
 
   private vao: WebGLVertexArrayObject;
   private instanceBuf: WebGLBuffer;
@@ -91,6 +94,7 @@ export class BarPass {
     this.uSolid = gl.getUniformLocation(this.program, "uSolid")!;
     this.uSolidColor = gl.getUniformLocation(this.program, "uSolidColor")!;
     this.uPipStride = gl.getUniformLocation(this.program, "uPipStride")!;
+    this.uScreenScale = gl.getUniformLocation(this.program, "uScreenScale")!;
 
     // --- Instance data buffers (CPU-side) ---
     this.healthData = new Float32Array(this.maxBars * FLOATS_PER_INSTANCE);
@@ -121,7 +125,7 @@ export class BarPass {
       gl.DYNAMIC_DRAW,
     );
     gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, BYTES_PER_INSTANCE, 0);
+    gl.vertexAttribPointer(1, 4, gl.FLOAT, false, BYTES_PER_INSTANCE, 0);
     gl.vertexAttribDivisor(1, 1);
 
     gl.bindVertexArray(null);
@@ -170,7 +174,7 @@ export class BarPass {
   }
 
   /** Render bars. Call once per frame after FX, before names. */
-  draw(cameraMat: Float32Array): void {
+  draw(cameraMat: Float32Array, zoom: number): void {
     if (
       this.healthCount === 0 &&
       this.progressCount === 0 &&
@@ -183,6 +187,7 @@ export class BarPass {
 
     gl.useProgram(this.program);
     gl.uniformMatrix3fv(this.uCamera, false, cameraMat);
+    gl.uniform1f(this.uScreenScale, screenScale(zoom, this.settings.unit));
     gl.uniform1f(this.uSolid, 0); // health/progress bars use the colored path
     gl.uniform1f(this.uBorderWidth, b.borderWidth);
     gl.uniform3f(this.uThresholds, b.threshold1, b.threshold2, b.threshold3);
@@ -268,6 +273,7 @@ export class BarPass {
     this.healthData[off] = unit.pos % this.mapW;
     this.healthData[off + 1] = (unit.pos - this.healthData[off]) / this.mapW;
     this.healthData[off + 2] = progress;
+    this.healthData[off + 3] = typeScale(unit.unitType, this.settings.unit);
     this.healthCount++;
   }
 
@@ -275,12 +281,14 @@ export class BarPass {
   private pushVeterancy(unit: UnitState): void {
     const x = unit.pos % this.mapW;
     const y = (unit.pos - x) / this.mapW;
+    const scale = typeScale(unit.unitType, this.settings.unit);
     for (let slot = 0; slot < unit.veterancy; slot++) {
       if (this.veterancyCount >= this.maxBars) return;
       const off = this.veterancyCount * FLOATS_PER_INSTANCE;
       this.veterancyData[off] = x;
       this.veterancyData[off + 1] = y;
       this.veterancyData[off + 2] = slot; // vertical stack slot, read by the shader
+      this.veterancyData[off + 3] = scale;
       this.veterancyCount++;
     }
   }
@@ -292,6 +300,7 @@ export class BarPass {
     this.progressData[off] = x;
     this.progressData[off + 1] = (unit.pos - x) / this.mapW;
     this.progressData[off + 2] = progress;
+    this.progressData[off + 3] = 0; // structures keep their own sizing
     this.progressCount++;
   }
 

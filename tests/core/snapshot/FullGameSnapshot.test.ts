@@ -196,9 +196,10 @@ describe.each(VARIANTS)("full game snapshots: %s", (_, overrides) => {
       if (Object.keys(overrides).length > 0) return; // checked once, on FFA
       // Runs during the spawn phase and finishes inside init, so it is never
       // alive at a tick boundary. BasicExecutions.test.ts covers it directly.
-      // Tank (fork): no AI builds tanks yet, so the simulated game never
-      // runs one. tests/Tank.test.ts covers its snapshot round trip.
-      const neverStored = new Set(["Pause", "Tank"]);
+      // Tank and CivicCenter (fork): no AI builds them yet, so the simulated
+      // game never runs one. tests/Tank.test.ts and tests/CivicCenter.test.ts
+      // cover their snapshot round trips.
+      const neverStored = new Set(["Pause", "Tank", "UpkeepStructure"]);
       const missing = EXECUTION_SNAPSHOT_TYPES.map((t) => t.name).filter(
         (name) => !reference.execTypes.has(name) && !neverStored.has(name),
       );

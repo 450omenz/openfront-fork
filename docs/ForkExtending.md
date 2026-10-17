@@ -1,0 +1,119 @@
+# Extending the fork: units and buildings
+
+The fork's features are built from small reusable parts. A new building or
+unit should mostly be a matter of filling in entries, not writing new
+systems. This page lists each part and the steps to use it.
+
+## Every new unit type (checklist)
+
+1. Append the type to `UnitType` in `packages/engine-api/src/game/GameTypes.ts`.
+   Always append: the wire format is positional.
+2. Give it a `unitInfo` case in `packages/engine-lib/src/configuration/Config.ts`
+   and a cost in `packages/engine/src/configuration/EngineConfig.ts`.
+3. Add a `UnitParamsMap` entry in `packages/engine/src/game/Game.ts`.
+4. Add the client type constant in `src/client/render/types/UnitType.ts`. Then
+   add it to the build menu (`hud/layers/BuildMenu.ts`), the hotkey
+   (`UserSettings.ts`, `InputHandler.ts`, `UserSettingModal.ts`), the unit bar
+   (`hud/layers/UnitDisplay.ts`) and the lobby's disable list
+   (`components/GameConfigSettings.ts`).
+5. Every new execution class needs a snapshot type and an entry in
+   `packages/engine/src/snapshot/ExecutionRegistry.ts`. If no AI builds the
+   unit yet, also add it to `neverStored` in
+   `tests/core/snapshot/FullGameSnapshot.test.ts`.
+6. Put new UI text in `resources/lang/en.json`. Keep the keys sorted.
+
+## Stackable buildings
+
+Set `upgradable: true` in the type's `unitInfo`. Building on top of an
+existing one then raises its level instead of placing a new one. The engine,
+the build menu and the level number drawn on the map all handle this already.
+Each extra level costs what one more building would.
+
+To make an effect grow with the stack, read the levels and not the building
+count:
+
+```ts
+config.workingLevels(player, UnitType.MyBuilding, cap);
+```
+
+This sums the levels of finished, active, paid-up buildings, up to `cap`. The
+Civic Center does this in `Config.workingCivicCenters`.
+
+## Buildings with upkeep
+
+`packages/engine/src/execution/UpkeepStructureExecution.ts` charges the owner
+`goldPerLevel × level` once every interval. A building whose owner can't pay
+gets `UnitStatus.NoFunds`: it stops counting in `workingLevels` and shows a
+"!" badge. To add one:
+
+1. Add an entry to `UPKEEP_STRUCTURES`, for example
+   `{ goldPerLevel: c => c.myUpkeep(), interval: c => c.myInterval() }`.
+2. In `ConstructionExecution`, send the type to `UpkeepStructureExecution`
+   (copy the `CivicCenter` case).
+
+## Population density sources
+
+Troops die where people live. When land is conquered or nuked, the troops
+lost come from that tile's population density, not an even split of the
+player's army. The model lives in
+`packages/engine-lib/src/game/PopulationDensity.ts`.
+
+To make a building pack people around it, add a row to
+`Config.populationDensitySources()`:
+
+```ts
+[UnitType.MyBuilding]: { peak: 2, radius: 15 },
+```
+
+`peak` is the extra density at the building, per level. It fades to nothing
+at `radius` tiles. A player with no sources loses troops exactly as before.
+
+Density is derived from buildings and never stored, so adding a source needs
+no snapshot change. Players see it in the hover panel as "Population here:
+N× average".
+
+## Unit behaviors
+
+Reusable unit AI lives in `packages/engine/src/execution/behaviors/`.
+
+`FrontSeeker.seekFront(mg, owner, unit, opts)` answers two questions: is the
+unit already at a front, and if not, which owned tile next to the nearest
+front should it drive to? A front is a tile that one of the owner's attacks
+on another player is fighting over. The `spread` option keeps a group from
+piling onto one tile.
+
+`TankExecution.autoDeploy()` shows how to use it:
+
+- Search on a staggered interval: `(ticks + unit.id()) % interval`.
+- Remember the target you chose, so you can tell it apart from a player's
+  order. Never override an order from the player.
+- After an order from the player arrives, hold position for a while.
+
+The tank's settings are in `EngineConfig`: `tankAutoFront`,
+`tankFrontSeekInterval`, `tankManualHoldTicks` and `tankFrontSpread`.
+
+## Status indicators
+
+To show an effect above a unit:
+
+1. Append a bit to `UnitStatus`.
+2. Call `unit.setStatus(bit, on)` from the unit's execution.
+3. Add an entry to `src/client/render/UnitStatusIndicators.ts`.
+
+The shapes are drawn procedurally, so the renderer needs no other changes.
+
+## Unit sprite size
+
+`src/client/render/gl/UnitScale.ts` keeps units between `minScreenPx` and
+`maxScreenPx` on screen at every zoom level. Health bars, veterancy pips and
+status rings scale along with the sprite.
+
+- To size a unit type, add it to `unit.typeScale` in
+  `src/client/render/gl/render-settings.json`. The key is the unit type's
+  name, and a type with no entry draws at 1.
+- If an atlas column is a variant of a type rather than a type of its own,
+  map it in `COL_TYPE_ALIAS` in `gl/passes/UnitPass.ts`. The tank headings
+  and the train cars work this way.
+- Players set the overall size in Settings → Graphics → Units → "Unit size".
+- Developers can tune all of these live in the render debug GUI, under
+  Unit → Per-Type Scale.
