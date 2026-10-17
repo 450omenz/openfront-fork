@@ -1,4 +1,5 @@
 import { CoalitionManager, CoalitionsSnapshot } from "./Coalitions";
+import { PactManager, PactsSnapshot } from "./Pacts";
 import { GameMap, TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   Cell,
@@ -156,6 +157,7 @@ export class GameImpl implements Game {
   private botTeam: Team = ColoredTeams.Bot;
   private _railNetwork: RailNetwork = createRailNetwork(this);
   private _coalitions = new CoalitionManager(this);
+  private _pacts = new PactManager(this);
 
   // Used to assign unique IDs to each new alliance
   private nextAllianceID: number = 0;
@@ -570,6 +572,7 @@ export class GameImpl implements Game {
     });
 
     this.removeInactiveExecutions();
+    this._pacts.tick(); // fork: end pacts that ran out
 
     this.execs.push(...inited);
     this.unInitExecs = unInited;
@@ -1436,6 +1439,10 @@ export class GameImpl implements Game {
     return this._coalitions;
   }
 
+  pacts(): PactManager {
+    return this._pacts;
+  }
+
   railNetwork(): RailNetwork {
     return this._railNetwork;
   }
@@ -1531,6 +1538,7 @@ export class GameImpl implements Game {
       ),
       stats: w.versioned(StatsSnapshot, (this._stats as StatsImpl).snapshot()),
       coalitions: w.versioned(CoalitionsSnapshot, this._coalitions.snapshot(w)),
+      pacts: w.versioned(PactsSnapshot, this._pacts.snapshot(w)),
     };
   }
 
@@ -1602,6 +1610,10 @@ export class GameImpl implements Game {
       );
       // Clients only hear about coalitions on a change; resend the list.
       if (this._coalitions.all().length > 0) this._coalitions.emit();
+    }
+    if (s.pacts !== null) {
+      this._pacts.restore(readVersioned(PactsSnapshot, s.pacts), r);
+      if (this._pacts.all().length > 0) this._pacts.emit();
     }
   }
 
@@ -1691,12 +1703,14 @@ export class GameImpl implements Game {
 
 export const GameSnapshot = snapshotType({
   name: "Game",
-  version: 3,
+  version: 4,
   migrations: {
     // Fork: entrenchment. Old games count all land as long held.
     1: (d) => ({ ...d, heldSince: null }),
     // Fork: coalitions.
     2: (d) => ({ ...d, coalitions: null }),
+    // Fork: non-aggression pacts.
+    3: (d) => ({ ...d, pacts: null }),
   },
   schema: z.object({
     ticks: zInt(),
@@ -1734,6 +1748,8 @@ export const GameSnapshot = snapshotType({
     stats: VersionedSchema,
     /** Fork. Null for games saved before coalitions. */
     coalitions: VersionedSchema.nullable(),
+    /** Fork. Null for games saved before pacts. */
+    pacts: VersionedSchema.nullable(),
   }),
 });
 export type GameState = z.infer<typeof GameSnapshot.schema>;

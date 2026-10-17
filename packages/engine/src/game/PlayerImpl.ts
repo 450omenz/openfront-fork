@@ -1544,6 +1544,10 @@ export class PlayerImpl implements Player {
     if (this.mg.config().isUnitDisabled(unitType)) {
       return false;
     }
+    // Fork: weapons the player's coalition has banned.
+    if (this.mg.coalitions().bans(this, unitType)) {
+      return false;
+    }
     const cost = knownCost ?? this.mg.unitInfo(unitType).cost(this.mg, this);
     if (this._gold < cost) {
       return false;

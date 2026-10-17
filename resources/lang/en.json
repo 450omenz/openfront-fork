@@ -591,6 +591,8 @@
     "wrong_worker": "This connection reached the wrong server process. Please reload the page and try again."
   },
   "coalition": {
+    "ban_hint": "Members can't build banned weapons. Outsiders who use one on a member are sanctioned.",
+    "banned_weapons": "Banned weapons",
     "create": "Found coalition",
     "decline": "Decline",
     "explain": "A coalition is a lasting peace: members can't attack each other, trade as allies and fight together. Its leader can ban trade with outsiders and order attacks.",
@@ -931,6 +933,9 @@
     "coalition_new_leader": "{name} now leads {coalition}",
     "coalition_sanctioned_you": "The coalition {name} has banned all trade with you",
     "coalition_target": "{leader} orders the coalition to attack {target}!",
+    "coalition_weapon_allowed": "{coalition} lifted its ban on {weapon}",
+    "coalition_weapon_banned": "{coalition} banned {weapon}",
+    "coalition_weapon_violation": "{name} used a banned weapon ({weapon}) against {coalition}! They are now sanctioned.",
     "conquered_no_gold": "Conquered {name} (didn't play, no gold awarded)",
     "duration_second": "1 second",
     "duration_seconds_plural": "{seconds} seconds",
@@ -942,6 +947,11 @@
     "missile_intercepted": "SAM intercepted {unit}",
     "naval_invasion_inbound": "Naval invasion incoming from {name} ({troops})",
     "no_boats_available": "No boats available, max {max}",
+    "pact_broken_by": "{name} broke your non-aggression pact!",
+    "pact_expired": "Your non-aggression pact with {name} has ended",
+    "pact_rejected": "{name} declined your non-aggression pact",
+    "pact_signed": "Non-aggression pact signed with {name} for {minutes} minutes",
+    "pact_you_broke": "You broke your non-aggression pact with {name}",
     "received_gold_from_captured_ship": "Received {gold} gold from ship captured from {name}",
     "received_gold_from_conquest": "Conquered {name}, received {gold} gold",
     "received_gold_from_player": "Received {gold} gold from {name}",
@@ -1799,6 +1809,15 @@
     "started": "Overtime! The territory needed to win is now dropping.",
     "title": "Overtime",
     "to_win": "Hold > {pct}% to win"
+  },
+  "pact": {
+    "accept": "Sign",
+    "break": "Break pact ({minutes}m left)",
+    "break_desc": "Breaking a non-aggression pact marks you a traitor",
+    "decline": "Decline",
+    "propose": "Pact {minutes}m",
+    "propose_desc": "Propose a {minutes}-minute non-aggression pact. Attacking a pact partner breaks it and marks the attacker a traitor.",
+    "proposed": "{name} proposes a {minutes}-minute non-aggression pact"
   },
   "performance_overlay": {
     "avg_60s": "Avg (60s):",

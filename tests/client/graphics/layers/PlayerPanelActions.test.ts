@@ -257,6 +257,15 @@ describe("PlayerPanel - action buttons follow PlayerActions capability flags", (
     expect(labels).not.toContain("coalition.transfer");
   });
 
+  test("pact buttons: one per length to propose (fork)", () => {
+    (panel as any).actions = { interaction: { canProposePact: true } };
+    (panel as any).renderActions(my, other);
+    expect(renderedLabels().filter((l) => l === "pact.propose")).toHaveLength(
+      3,
+    );
+    expect(renderedLabels()).not.toContain("pact.break");
+  });
+
   test("own panel offers founding a coalition when allowed (fork)", () => {
     (panel as any).actions = { canCreateCoalition: true, interaction: {} };
     (panel as any).renderActions(my, my);

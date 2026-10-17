@@ -1,3 +1,4 @@
+import { respectsPact, respectsWeaponBan } from "./NationTreaties";
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   AllPlayers,
@@ -442,6 +443,13 @@ export class NationMIRVBehavior {
 
     this.emojiBehavior.maybeSendAttackEmoji(enemy);
 
+    // Fork: pacts and coalition weapon bans hold most nations back.
+    if (
+      respectsPact(this.game, this.player, enemy) ||
+      respectsWeaponBan(this.player, enemy, UnitType.MIRV)
+    ) {
+      return;
+    }
     const centerTile = this.calculateTerritoryCenter(enemy);
     if (centerTile && this.player.canBuild(UnitType.MIRV, centerTile)) {
       this.game.addExecution(new MirvExecution(this.player, centerTile));

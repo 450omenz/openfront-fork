@@ -14,6 +14,8 @@ import {
   Quads,
   RankedType,
   Trios,
+  BANNABLE_WEAPONS,
+  PACT_MINUTES,
   UnitType,
 } from "./game/GameTypes";
 import { PlayerStatsSchema } from "./StatsSchemas";
@@ -47,7 +49,8 @@ export type Intent =
   | TogglePauseIntent
   | UpdateGameConfigIntent
   | ToggleGameStartTimer
-  | CoalitionIntent;
+  | CoalitionIntent
+  | PactIntent;
 
 export type AttackIntent = z.infer<typeof AttackIntentSchema>;
 export type CancelAttackIntent = z.infer<typeof CancelAttackIntentSchema>;
@@ -592,7 +595,34 @@ export const CoalitionTransferIntentSchema = z.object({
   type: z.literal("coalition_transfer"),
   target: MappedID,
 });
+export const CoalitionBanIntentSchema = z.object({
+  type: z.literal("coalition_ban"),
+  unit: z.enum(BANNABLE_WEAPONS),
+  action: z.union([z.literal("start"), z.literal("stop")]),
+});
+
+// Fork: non-aggression pacts.
+export const PactProposeIntentSchema = z.object({
+  type: z.literal("pact_propose"),
+  recipient: MappedID,
+  minutes: z.union(PACT_MINUTES.map((m) => z.literal(m))),
+});
+export const PactReplyIntentSchema = z.object({
+  type: z.literal("pact_reply"),
+  proposer: MappedID,
+  accept: z.boolean(),
+});
+export const PactBreakIntentSchema = z.object({
+  type: z.literal("pact_break"),
+  target: MappedID,
+});
+export type PactIntent =
+  | z.infer<typeof PactProposeIntentSchema>
+  | z.infer<typeof PactReplyIntentSchema>
+  | z.infer<typeof PactBreakIntentSchema>;
+
 export type CoalitionIntent =
+  | z.infer<typeof CoalitionBanIntentSchema>
   | z.infer<typeof CoalitionCreateIntentSchema>
   | z.infer<typeof CoalitionInviteIntentSchema>
   | z.infer<typeof CoalitionReplyIntentSchema>
@@ -637,6 +667,10 @@ export const IntentSchema = z.discriminatedUnion("type", [
   CoalitionSanctionIntentSchema,
   CoalitionTargetIntentSchema,
   CoalitionTransferIntentSchema,
+  CoalitionBanIntentSchema,
+  PactProposeIntentSchema,
+  PactReplyIntentSchema,
+  PactBreakIntentSchema,
 ]);
 
 // StampedIntent = Intent with server-stamped clientID (used in turns and execution)

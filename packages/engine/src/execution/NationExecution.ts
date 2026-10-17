@@ -44,6 +44,7 @@ import type {
 } from "../snapshot/SnapshotContext";
 import { NationAllianceBehavior } from "./nation/NationAllianceBehavior";
 import { NationCoalitionBehavior } from "./nation/NationCoalitionBehavior";
+import { NationPactBehavior } from "./nation/NationPactBehavior";
 import { NationEmojiBehavior } from "./nation/NationEmojiBehavior";
 import { NationMIRVBehavior } from "./nation/NationMIRVBehavior";
 import { NationNukeBehavior } from "./nation/NationNukeBehavior";
@@ -67,6 +68,7 @@ export class NationExecution implements Execution {
   private structureBehavior!: NationStructureBehavior;
   private tradeBehavior!: NationTradeBehavior;
   private coalitionBehavior!: NationCoalitionBehavior;
+  private pactBehavior!: NationPactBehavior;
   // Fork: rolled in init; null when personalities are off (baseline).
   private personality: Personality | null = null;
   private mg: Game;
@@ -254,6 +256,7 @@ export class NationExecution implements Execution {
     this.allianceBehavior.handleAllianceExtensionRequests();
     this.tradeBehavior.warmToPartners();
     this.coalitionBehavior.handleCoalitions();
+    this.pactBehavior.handlePacts();
     this.mirvBehavior.considerMIRV();
     this.structureBehavior.handleStructures();
     this.warshipBehavior.maybeSpawnWarship();
@@ -314,6 +317,7 @@ export class NationExecution implements Execution {
     );
     this.tradeBehavior = new NationTradeBehavior(this.mg, this.player);
     this.coalitionBehavior = new NationCoalitionBehavior(this.mg, this.player);
+    this.pactBehavior = new NationPactBehavior(this.mg, this.player);
     this.behaviorsInitialized = true;
   }
 
@@ -525,6 +529,7 @@ export class NationExecution implements Execution {
     // Stateless behaviors.
     this.tradeBehavior = new NationTradeBehavior(r.game, player);
     this.coalitionBehavior = new NationCoalitionBehavior(r.game, player);
+    this.pactBehavior = new NationPactBehavior(r.game, player);
     this.emojiBehavior = emoji;
     this.mirvBehavior = mirv;
     this.allianceBehavior = alliance;

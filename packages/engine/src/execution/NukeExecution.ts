@@ -192,6 +192,12 @@ export class NukeExecution implements Execution {
       if (alliance !== null) {
         this.player.breakAlliance(alliance);
       }
+      // Fork: a nuke breaks a pact with whoever it hits, and counts as a
+      // weapon use against their coalition.
+      this.mg.pacts().breakPact(this.player, attackedPlayer);
+      this.mg
+        .coalitions()
+        .reportWeaponUse(this.player, attackedPlayer, this.nuke.type());
       // Fork: nuking a fellow coalition member breaks with the coalition.
       if (this.player.isCoalitionMember(attackedPlayer)) {
         this.mg.coalitions().leave(this.player);

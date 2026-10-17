@@ -1,4 +1,5 @@
 import { CoalitionExecution } from "./coalition/CoalitionExecution";
+import { PactExecution } from "./coalition/PactExecution";
 import {
   ClientID,
   GameID,
@@ -184,6 +185,29 @@ export class Executor {
         return new CoalitionExecution(player, {
           kind: "transfer",
           target: intent.target,
+        });
+      case "coalition_ban":
+        return new CoalitionExecution(player, {
+          kind: "ban",
+          weapon: intent.unit,
+          on: intent.action === "start",
+        });
+      case "pact_propose":
+        return new PactExecution(player, {
+          kind: "propose",
+          other: intent.recipient,
+          minutes: intent.minutes,
+        });
+      case "pact_reply":
+        return new PactExecution(player, {
+          kind: "reply",
+          other: intent.proposer,
+          accept: intent.accept,
+        });
+      case "pact_break":
+        return new PactExecution(player, {
+          kind: "break",
+          other: intent.target,
         });
       default:
         throw new Error(`intent type ${intent} not found`);

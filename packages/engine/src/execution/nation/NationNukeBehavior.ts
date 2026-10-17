@@ -1,3 +1,4 @@
+import { respectsPact, respectsWeaponBan } from "./NationTreaties";
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   Difficulty,
@@ -1246,6 +1247,13 @@ export class NationNukeBehavior {
     targetPlayer: Player,
     waitTicks = 0,
   ) {
+    // Fork: pacts and coalition weapon bans hold most nations back.
+    if (
+      respectsPact(this.game, this.player, targetPlayer) ||
+      respectsWeaponBan(this.player, targetPlayer, nukeType)
+    ) {
+      return;
+    }
     const tick = this.game.ticks();
     this.recentlySentNukes.push([tick, tile, nukeType]);
     const perceived = this.inflatedNukeCost(nukeType);

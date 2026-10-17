@@ -344,6 +344,8 @@ export class GameRunner {
         canEmbargo: !player.hasEmbargoAgainst(other),
         allianceInfo: player.allianceInfo(other) ?? undefined,
         ...this.coalitionInteraction(player, other),
+        canProposePact: this.game.pacts().canPropose(player, other),
+        pactExpiresAt: this.game.pacts().between(player, other)?.expiresAt,
       };
     }
 

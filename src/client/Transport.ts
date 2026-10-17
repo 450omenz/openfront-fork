@@ -11,6 +11,7 @@ import {
   AllPlayersStats,
   ClientID,
   CoalitionIntent,
+  PactIntent,
   Intent,
   Winner,
 } from "@openfront/engine-api/Schemas";
@@ -181,6 +182,11 @@ export class SendEmbargoAllIntentEvent implements GameEvent {
   constructor(public readonly action: "start" | "stop") {}
 }
 
+/** Fork: any non-aggression pact action (propose, reply, break). */
+export class SendPactIntentEvent implements GameEvent {
+  constructor(public readonly intent: PactIntent) {}
+}
+
 /** Fork: any coalition action (create, invite, reply, leave, kick, ...). */
 export class SendCoalitionIntentEvent implements GameEvent {
   constructor(public readonly intent: CoalitionIntent) {}
@@ -337,6 +343,7 @@ export class Transport {
       this.onSendEmbargoAllIntent(e),
     );
     this.subscribe(SendCoalitionIntentEvent, (e) => this.sendIntent(e.intent));
+    this.subscribe(SendPactIntentEvent, (e) => this.sendIntent(e.intent));
     this.subscribe(BuildUnitIntentEvent, (e) => this.onBuildUnitIntent(e));
 
     this.subscribe(PauseGameIntentEvent, (e) => this.onPauseGameIntent(e));

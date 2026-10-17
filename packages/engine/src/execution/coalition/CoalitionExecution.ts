@@ -1,4 +1,4 @@
-import { PlayerID } from "@openfront/engine-api/game/GameTypes";
+import { PlayerID, UnitType } from "@openfront/engine-api/game/GameTypes";
 import { zPlayerRef } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { z } from "zod";
 import { Execution, Game, Player } from "../../game/Game";
@@ -18,7 +18,8 @@ export type CoalitionAction =
   | { kind: "kick"; target: PlayerID }
   | { kind: "sanction"; target: PlayerID; on: boolean }
   | { kind: "target"; target: PlayerID }
-  | { kind: "transfer"; target: PlayerID };
+  | { kind: "transfer"; target: PlayerID }
+  | { kind: "ban"; weapon: UnitType; on: boolean };
 
 /**
  * Applies one coalition action for `player` in init, then ends. The
@@ -45,6 +46,9 @@ export class CoalitionExecution implements Execution {
         return;
       case "leave":
         c.leave(this.player);
+        return;
+      case "ban":
+        c.setWeaponBan(this.player, a.weapon, a.on);
         return;
     }
     const other = target(a.target);
@@ -110,6 +114,11 @@ const CoalitionStateSchema = z.object({
     }),
     z.object({ kind: z.literal("target"), target: z.string() }),
     z.object({ kind: z.literal("transfer"), target: z.string() }),
+    z.object({
+      kind: z.literal("ban"),
+      weapon: z.enum(UnitType),
+      on: z.boolean(),
+    }),
   ]),
 });
 type CoalitionState = z.infer<typeof CoalitionStateSchema>;

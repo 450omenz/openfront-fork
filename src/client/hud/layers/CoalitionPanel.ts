@@ -1,3 +1,7 @@
+import {
+  BANNABLE_WEAPONS,
+  UnitType,
+} from "@openfront/engine-api/game/GameTypes";
 import type { CoalitionView } from "@openfront/engine-api/game/GameUpdates";
 import {
   COALITION_NAME_MAX,
@@ -11,6 +15,11 @@ import { Controller } from "../../Controller";
 import { SendCoalitionIntentEvent } from "../../Transport";
 import { translateText } from "../../Utils";
 import { GameView, PlayerView } from "../../view";
+
+// unit_type.* keys are snake_case ("Hydrogen Bomb" -> hydrogen_bomb).
+function unitKey(t: UnitType): string {
+  return t.toLowerCase().replace(/ /g, "_");
+}
 
 /** Fork: open (true), close (false) or toggle (undefined) the panel. */
 export class ToggleCoalitionPanelEvent implements GameEvent {
@@ -125,6 +134,7 @@ export class CoalitionPanel extends LitElement implements Controller {
                 .join(", ")}
             </div>`
         : ""}
+      ${this.renderBans(me, c)}
       <div class="text-xs text-slate-400 mb-2">
         ${c.leaderID === me.smallID()
           ? translateText("coalition.leader_hint")
@@ -138,6 +148,44 @@ export class CoalitionPanel extends LitElement implements Controller {
         ${translateText("coalition.leave")}
       </button>
     `;
+  }
+
+  // Weapon bans: checkboxes for the leader, a list for everyone else.
+  private renderBans(me: PlayerView, c: CoalitionView) {
+    const leads = c.leaderID === me.smallID();
+    if (!leads && c.bannedWeapons.length === 0) return "";
+    return html`<div class="text-xs uppercase tracking-wide text-slate-400">
+        ${translateText("coalition.banned_weapons")}
+      </div>
+      <div class="mb-2">
+        ${leads
+          ? BANNABLE_WEAPONS.map((w) => {
+              const on = c.bannedWeapons.includes(w);
+              return html`<label
+                class="flex items-center gap-2 text-sm cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  .checked=${on}
+                  @change=${() =>
+                    this.send({
+                      type: "coalition_ban",
+                      unit: w,
+                      action: on ? "stop" : "start",
+                    })}
+                />
+                ${translateText(`unit_type.${unitKey(w)}`)}
+              </label>`;
+            })
+          : html`<div class="text-sm text-red-300">
+              ${c.bannedWeapons
+                .map((w) => translateText(`unit_type.${unitKey(w)}`))
+                .join(", ")}
+            </div>`}
+      </div>
+      <div class="text-xs text-slate-400 mb-2">
+        ${translateText("coalition.ban_hint")}
+      </div>`;
   }
 
   private renderCreate() {

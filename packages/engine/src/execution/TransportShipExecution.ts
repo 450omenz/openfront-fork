@@ -113,6 +113,10 @@ export class TransportShipExecution implements Execution {
       this.active = false;
       return;
     }
+    // Fork: sailing an invasion at a pact partner breaks the pact.
+    if (this.target.isPlayer()) {
+      this.mg.pacts().breakPact(this.attacker, this.target);
+    }
 
     this.troops ??= this.mg
       .config()

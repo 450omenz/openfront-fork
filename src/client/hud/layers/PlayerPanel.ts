@@ -1,5 +1,6 @@
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
+  PACT_MINUTES,
   AllPlayers,
   GameType,
   PlayerActions,
@@ -10,6 +11,7 @@ import {
 import {
   CoalitionIntent,
   Emoji,
+  PactIntent,
   flattenedEmojiTable,
 } from "@openfront/engine-api/Schemas";
 import { renderNumber, renderTroops } from "@openfront/engine-lib/Format";
@@ -40,6 +42,7 @@ import {
   SendAllianceRequestIntentEvent,
   SendBreakAllianceIntentEvent,
   SendCoalitionIntentEvent,
+  SendPactIntentEvent,
   SendEmbargoAllIntentEvent,
   SendEmbargoIntentEvent,
   SendEmojiIntentEvent,
@@ -341,6 +344,54 @@ export class PlayerPanel extends LitElement implements Controller {
     e.stopPropagation();
     this.eventBus.emit(new SendCoalitionIntentEvent(intent));
     this.hide();
+  }
+
+  private pactAction(e: Event, intent: PactIntent) {
+    e.stopPropagation();
+    this.eventBus.emit(new SendPactIntentEvent(intent));
+    this.hide();
+  }
+
+  // Fork: non-aggression pact buttons for another player — one per length
+  // to propose, or break the one we have (shows the time left).
+  private renderPactActions(my: PlayerView, other: PlayerView) {
+    const i = this.actions?.interaction;
+    if (other === my || i === undefined) return "";
+    if (i.pactExpiresAt !== undefined) {
+      const minutes = Math.max(
+        1,
+        Math.ceil((i.pactExpiresAt - this.g.ticks()) / 600),
+      );
+      return html`<div class="grid auto-cols-fr grid-flow-col gap-1">
+        ${actionButton({
+          onClick: (e: MouseEvent) =>
+            this.pactAction(e, { type: "pact_break", target: other.id() }),
+          icon: breakAllianceIcon,
+          iconAlt: "Break pact",
+          title: translateText("pact.break_desc"),
+          label: translateText("pact.break", { minutes }),
+          type: "red",
+        })}
+      </div>`;
+    }
+    if (!i.canProposePact) return "";
+    return html`<div class="grid auto-cols-fr grid-flow-col gap-1">
+      ${PACT_MINUTES.map((minutes) =>
+        actionButton({
+          onClick: (e: MouseEvent) =>
+            this.pactAction(e, {
+              type: "pact_propose",
+              recipient: other.id(),
+              minutes,
+            }),
+          icon: allianceIcon,
+          iconAlt: "Non-aggression pact",
+          title: translateText("pact.propose_desc", { minutes }),
+          label: translateText("pact.propose", { minutes }),
+          type: "normal",
+        }),
+      )}
+    </div>`;
   }
 
   private openCoalitionPanel(e: Event) {
@@ -1169,6 +1220,7 @@ export class PlayerPanel extends LitElement implements Controller {
               })}
             </div>`
           : ""}
+        ${this.renderPactActions(my, other)}
         ${this.renderCoalitionActions(my, other)}
         ${this.renderModeration(my, other, this.isAdminRole)}
       </div>

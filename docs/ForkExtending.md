@@ -405,3 +405,76 @@ from the PRNG.
 - **Leaving.** A member leaves when it comes to distrust the leader and its
   loyalty is under 40. A member with loyalty under 25 also leaves when it
   has 3× the troops of a bordering member.
+
+### Weapon bans
+
+The coalition leader can ban any of `BANNABLE_WEAPONS`: atom bomb,
+hydrogen bomb, MIRV, tank and warship (`coalition_ban` intent; checkboxes
+in the coalition panel).
+
+- **Members** can't build or launch a banned weapon. `PlayerImpl.canBuild`
+  refuses it, so the build menu greys it out. Units built before the ban
+  stay.
+- **Outsiders** who use a banned weapon on a member are sanctioned
+  automatically, and every member's relation with them drops.
+  `Coalitions.reportWeaponUse` is called when:
+  - a nuke hits a member,
+  - a MIRV is launched at a member,
+  - a tank supports an attack on a member's tile,
+  - a warship fires on a member's ship.
+
+  The coalition remembers violators. Nation leaders order attacks on recent
+  violators first.
+
+- **Tank auto-deploy** stays away from fronts against a coalition that
+  banned tanks. A player can still drive there on purpose.
+- **Nations decide by personality:**
+  - As leaders, nations with caution 60+ and Diplomats ban hydrogen bombs
+    and MIRVs; caution 75+ bans atom bombs too; aggression ≤ 30 bans
+    tanks; aggression 70+ bans nothing.
+  - As members, warlike (75+) and not loyal (< 60) nations leave a
+    coalition, or refuse to join one, that bans weapons they own (tanks,
+    or silos for the nuclear bans).
+  - Cautious nations count a nuke ban as a reason to join.
+  - As outsiders, nations don't use a banned weapon on members
+    (`NationTreaties.respectsWeaponBan`) unless they're aggressive (70+)
+    and not cautious.
+
+## Non-aggression pacts
+
+`packages/engine/src/game/Pacts.ts` (`game.pacts()`). Two players promise
+not to attack each other for 5, 10 or 20 minutes (`PACT_MINUTES`).
+
+- A pact isn't friendship: there's no shared defense, no donations, and
+  embargoes still work.
+- Attacks aren't blocked. Attacking a partner, sailing a boat attack at
+  them or nuking them breaks the pact immediately: the attacker is marked a
+  traitor (the same penalty as breaking an alliance), and the victim's
+  relation with them drops by 100. Breaking a pact on purpose
+  (`pact_break`) costs the same.
+- If a proposal is refused, the proposer waits 2 minutes before asking that
+  player again.
+- **Intents:** `pact_propose`, `pact_reply`, `pact_break`, all handled by
+  `PactExecution`.
+- **Updates:** `GameUpdateType.Pacts` (the full list) and `PactProposal`.
+- **Saving:** game snapshot v4.
+
+`execution/nation/NationPactBehavior.ts`:
+
+- **Accepting.** A nation accepts a proposal if any of these is true:
+  - the proposer is stronger,
+  - the nation is busy fighting someone else,
+  - the proposer is a valued trade partner,
+  - the nation is cautious (60+).
+
+  It refuses if:
+  - it hates the proposer,
+  - the proposer is a traitor and the nation is loyal (50+),
+  - it is greedy (aggression 75+) and the proposer is weaker.
+
+- **Proposing.** Nations with caution 55+ ask their strongest non-friendly
+  neighbor that outnumbers them. The more cautious they are, the longer
+  the pact they ask for.
+- **Keeping the pact.** `respectsPact` keeps nations from attacking or
+  nuking a partner. The exception is a backstab: a nation with loyalty
+  under 25 that has 3× the partner's troops.

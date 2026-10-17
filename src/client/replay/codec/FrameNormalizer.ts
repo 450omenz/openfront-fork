@@ -85,6 +85,8 @@ export const UPDATE_TYPE_ROUTING: Record<
   // player field for it.
   Coalitions: "misc",
   CoalitionInvite: "misc",
+  Pacts: "misc",
+  PactProposal: "misc",
 };
 
 /**

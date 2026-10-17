@@ -105,6 +105,9 @@ function buildSlots(mg: Game, owner: Player): FrontSlot[] {
     if (!attack.isActive() || attack.retreating()) continue;
     const target = attack.target();
     if (!target.isPlayer()) continue;
+    // A coalition that banned tanks: auto-deploy stays out of it (a player
+    // can still drive there on purpose, and take the consequences).
+    if (target.coalition()?.bannedWeapons().has(UnitType.Tank)) continue;
     for (const t of attack.borderTiles()) {
       if (mg.owner(t) !== target) continue; // stale border entry
       add(FrontKind.Attack, t, ATTACK_TILE_WEIGHT, target, target.smallID());

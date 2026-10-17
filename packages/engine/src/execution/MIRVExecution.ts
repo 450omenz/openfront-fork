@@ -115,6 +115,11 @@ export class MirvExecution implements Execution {
         if (this.targetPlayer !== this.player) {
           this.targetPlayer.updateRelation(this.player, -100);
           this.player.updateRelation(this.targetPlayer, -100);
+          // Fork: pacts and coalition weapon bans.
+          this.mg.pacts().breakPact(this.player, this.targetPlayer);
+          this.mg
+            .coalitions()
+            .reportWeaponUse(this.player, this.targetPlayer, UnitType.MIRV);
         }
       }
       const x = Math.floor((this.baseX + this.mg.x(this.nuke.tile())) / 2);

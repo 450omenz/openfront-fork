@@ -1,4 +1,7 @@
-import type { CoalitionView } from "@openfront/engine-api/game/GameUpdates";
+import type {
+  CoalitionView,
+  PactView,
+} from "@openfront/engine-api/game/GameUpdates";
 import { ClientID } from "@openfront/engine-api/Schemas";
 import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
@@ -526,6 +529,11 @@ export class PlayerView implements PlayerLike {
       this.isOnSameTeam(other) ||
       this.isCoalitionMember(other)
     );
+  }
+
+  /** Fork: our non-aggression pact with another player, if any. */
+  pactWith(other: PlayerView): PactView | null {
+    return this.game.pactBetween(this.smallID(), other.smallID());
   }
 
   /** Fork: this player's coalition, if any. */

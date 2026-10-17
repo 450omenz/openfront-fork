@@ -667,6 +667,14 @@ export class WarshipExecution implements Execution {
           this.warship.targetUnit()!,
         ),
       );
+      // Fork: warships firing on a coalition that banned them.
+      this.mg
+        .coalitions()
+        .reportWeaponUse(
+          this.warship.owner(),
+          this.warship.targetUnit()!.owner(),
+          UnitType.Warship,
+        );
       if (!this.warship.targetUnit()!.hasHealth()) {
         // Don't send multiple shells to target that can be oneshotted
         this.alreadySentShell.add(this.warship.targetUnit()!);

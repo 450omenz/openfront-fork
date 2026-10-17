@@ -552,6 +552,10 @@ export interface Coalition {
   /** The leader's attack order while it lasts. */
   target(): Player | null;
   createdAt(): Tick;
+  /** Weapons members may not build or launch. */
+  bannedWeapons(): ReadonlySet<UnitType>;
+  /** Outsiders who used a banned weapon on a member, by last tick. */
+  violators(): ReadonlyMap<Player, Tick>;
 }
 
 export interface CoalitionInvite {
@@ -582,7 +586,37 @@ export interface Coalitions {
   transfer(leader: Player, target: Player): boolean;
   setSanction(leader: Player, target: Player, on: boolean): boolean;
   setTarget(leader: Player, target: Player): boolean;
+  setWeaponBan(leader: Player, weapon: UnitType, on: boolean): boolean;
+  bans(p: Player, weapon: UnitType): boolean;
+  reportWeaponUse(user: Player, victim: Player, weapon: UnitType): void;
   removeSilently(p: Player): void;
+}
+
+// Fork: non-aggression pacts (implementation and rules in Pacts.ts).
+export interface Pact {
+  a: Player;
+  b: Player;
+  createdAt: Tick;
+  expiresAt: Tick;
+}
+
+export interface PactProposal {
+  proposer: Player;
+  recipient: Player;
+  minutes: number;
+  createdAt: Tick;
+}
+
+export interface Pacts {
+  enabled(): boolean;
+  all(): readonly Pact[];
+  between(a: Player, b: Player): Pact | null;
+  of(p: Player): readonly Pact[];
+  proposalsFor(p: Player): readonly PactProposal[];
+  canPropose(from: Player, to: Player): boolean;
+  propose(from: Player, to: Player, minutes: number): boolean;
+  reply(recipient: Player, proposer: Player, accept: boolean): boolean;
+  breakPact(breaker: Player, victim: Player): boolean;
 }
 
 export interface Game extends GameLike {
@@ -729,6 +763,8 @@ export interface Game extends GameLike {
   railNetwork(): RailNetwork;
   /** Fork: coalitions (see Coalitions.ts). */
   coalitions(): Coalitions;
+  /** Fork: non-aggression pacts (see Pacts.ts). */
+  pacts(): Pacts;
   /** MIRVs launched so far by anyone; each one raises the next one's price. */
   mirvsLaunched(): number;
   recordMirvLaunch(): void;

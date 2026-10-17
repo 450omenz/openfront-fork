@@ -280,6 +280,22 @@ export enum Relation {
   Friendly = 3,
 }
 
+// Fork: weapons a coalition leader can ban (see Coalitions.ts).
+export const BANNABLE_WEAPONS = [
+  UnitType.AtomBomb,
+  UnitType.HydrogenBomb,
+  UnitType.MIRV,
+  UnitType.Tank,
+  UnitType.Warship,
+] as const;
+export type BannableWeapon = (typeof BANNABLE_WEAPONS)[number];
+export function isBannableWeapon(t: UnitType): t is BannableWeapon {
+  return (BANNABLE_WEAPONS as readonly UnitType[]).includes(t);
+}
+
+// Fork: the lengths a non-aggression pact can be signed for, in minutes.
+export const PACT_MINUTES = [5, 10, 20] as const;
+
 // Fork: a nation's personality archetype (see NationPersonality). Shown to
 // players; the traits behind it stay in the engine.
 export enum Archetype {
@@ -484,6 +500,10 @@ export interface PlayerInteraction {
   canCoalitionUnsanction?: boolean;
   canCoalitionTarget?: boolean;
   canCoalitionTransfer?: boolean;
+  // Fork: non-aggression pacts with this player.
+  canProposePact?: boolean;
+  /** Tick our pact with this player ends, if we have one. */
+  pactExpiresAt?: Tick;
 }
 
 export interface EmojiMessage {

@@ -119,6 +119,8 @@ export enum GameUpdateType {
   // Fork: append-only.
   Coalitions,
   CoalitionInvite,
+  Pacts,
+  PactProposal,
 }
 
 export type GameUpdate =
@@ -146,7 +148,9 @@ export type GameUpdate =
   | GamePausedUpdate
   | DonateEventUpdate
   | CoalitionsUpdate
-  | CoalitionInviteUpdate;
+  | CoalitionInviteUpdate
+  | PactsUpdate
+  | PactProposalUpdate;
 
 export interface BonusEventUpdate {
   type: GameUpdateType.BonusEvent;
@@ -418,6 +422,30 @@ export interface CoalitionView {
   targetID: number | null;
   /** Tick the attack order lapses. */
   targetUntil: Tick | null;
+  /** Weapons members may not build or launch. */
+  bannedWeapons: UnitType[];
+}
+
+/** Fork: one non-aggression pact. Players are smallIDs. */
+export interface PactView {
+  aID: number;
+  bID: number;
+  expiresAt: Tick;
+}
+
+/** Fork: every active pact, sent whenever one starts or ends. */
+export interface PactsUpdate {
+  type: GameUpdateType.Pacts;
+  pacts: PactView[];
+}
+
+/** Fork: a player proposed a non-aggression pact. */
+export interface PactProposalUpdate {
+  type: GameUpdateType.PactProposal;
+  proposerID: number;
+  recipientID: number;
+  minutes: number;
+  expiresAt: Tick;
 }
 
 /** Fork: the full coalition list, sent whenever any coalition changes. */

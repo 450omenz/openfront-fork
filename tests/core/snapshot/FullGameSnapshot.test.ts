@@ -201,6 +201,7 @@ describe.each(VARIANTS)("full game snapshots: %s", (_, overrides) => {
       // cover their snapshot round trips.
       const neverStored = new Set([
         "Coalition",
+        "Pact",
         "Pause",
         "Tank",
         "UpkeepStructure",

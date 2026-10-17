@@ -1,4 +1,10 @@
-import { PlayerType, Relation } from "@openfront/engine-api/game/GameTypes";
+import {
+  Archetype,
+  BANNABLE_WEAPONS,
+  PlayerType,
+  Relation,
+  UnitType,
+} from "@openfront/engine-api/game/GameTypes";
 import {
   COALITION_NAME_MAX,
   COALITION_NAME_REGEX,
@@ -14,7 +20,11 @@ import { isValuedPartner } from "./NationTradeBehavior";
  *    reason (a trade partner or friend inside, safety in numbers, or a
  *    loyal/diplomatic streak), never when it hates a member;
  *  - as a member, leaves when it has come to distrust the leader and isn't
- *    loyal, or (opportunists) when it could swallow a bordering member;
+ *    loyal, or (opportunists) when it could swallow a bordering member, or
+ *    (warlike, not loyal) when the coalition bans weapons it relies on;
+ *  - as leader, bans weapons by temperament: the cautious and diplomats
+ *    ban hydrogen bombs and MIRVs (very cautious: atom bombs too), the
+ *    peaceful ban tanks, the aggressive ban nothing;
  *  - as leader, invites friends and trade partners, sanctions players that
  *    several members are hostile to (and lifts that when it fades), and
  *    orders an attack on a hostile neighbor of the coalition; a founder
@@ -68,7 +78,11 @@ export class NationCoalitionBehavior {
       return false;
     }
     if (inviter.isTraitor() && p.loyalty >= 50) return false;
+    if (this.chafesAtBans(c)) return false;
+    const bansNukes = c.bannedWeapons().has(UnitType.HydrogenBomb);
     const reasons =
+      // The cautious like a coalition that outlaws the worst weapons.
+      (bansNukes && p.caution >= 60) ||
       me.relation(inviter) >= Relation.Friendly ||
       c.members().some((m) => isValuedPartner(this.game, me, m)) ||
       // Safety in numbers for the cautious.
@@ -94,7 +108,9 @@ export class NationCoalitionBehavior {
             me.sharesBorderWith(m) &&
             me.troops() >= m.troops() * BETRAY_TROOP_RATIO,
         );
-    if (fallenOut || prey) this.game.coalitions().leave(me);
+    if (fallenOut || prey || this.chafesAtBans(c)) {
+      this.game.coalitions().leave(me);
+    }
   }
 
   private lead(c: Coalition): void {
@@ -121,8 +137,16 @@ export class NationCoalitionBehavior {
       if (candidate !== undefined) coalitions.invite(me, candidate);
     }
 
-    // Sanctions and orders need someone to give them to.
+    // Sanctions, bans and orders need someone to give them to.
     if (c.size() < 2) return;
+
+    const wanted = desiredBans(me);
+    for (const weapon of BANNABLE_WEAPONS) {
+      const on = wanted.has(weapon);
+      if (on !== c.bannedWeapons().has(weapon)) {
+        coalitions.setWeaponBan(me, weapon, on);
+      }
+    }
 
     // Sanctions follow the members' grudges.
     for (const other of this.game.players()) {
@@ -149,6 +173,16 @@ export class NationCoalitionBehavior {
 
   private orderTarget(c: Coalition): Player | null {
     const me = this.player;
+    // Whoever broke the coalition's weapon ban recently comes first.
+    const now = this.game.ticks();
+    for (const [violator, tick] of c.violators()) {
+      if (
+        now - tick < VIOLATOR_MEMORY_TICKS &&
+        this.game.coalitions().canTarget(me, violator)
+      ) {
+        return violator;
+      }
+    }
     let best: Player | null = null;
     for (const m of c.members()) {
       for (const n of m.nearby()) {
@@ -165,6 +199,24 @@ export class NationCoalitionBehavior {
       }
     }
     return best;
+  }
+
+  // A warlike, not very loyal nation won't live with a ban on weapons it
+  // has invested in (tanks it owns, silos for nukes).
+  private chafesAtBans(c: Coalition): boolean {
+    const me = this.player;
+    const p = personalityOf(me);
+    if (p.aggression < CHAFE_AGGRESSION || p.loyalty >= CHAFE_LOYALTY) {
+      return false;
+    }
+    const bans = c.bannedWeapons();
+    const tanks = bans.has(UnitType.Tank) && me.units(UnitType.Tank).length > 0;
+    const nukes =
+      (bans.has(UnitType.AtomBomb) ||
+        bans.has(UnitType.HydrogenBomb) ||
+        bans.has(UnitType.MIRV)) &&
+      me.units(UnitType.MissileSilo).length > 0;
+    return tanks || nukes;
   }
 
   private maybeFound(): void {
@@ -193,7 +245,25 @@ export class NationCoalitionBehavior {
   }
 }
 
+// What a nation leader bans, by temperament.
+export function desiredBans(leader: Player): Set<UnitType> {
+  const p = personalityOf(leader);
+  const bans = new Set<UnitType>();
+  if (p.aggression >= 70) return bans;
+  if (p.caution >= 60 || p.archetype === Archetype.Diplomat) {
+    bans.add(UnitType.HydrogenBomb);
+    bans.add(UnitType.MIRV);
+  }
+  if (p.caution >= 75) bans.add(UnitType.AtomBomb);
+  if (p.aggression <= 30) bans.add(UnitType.Tank);
+  return bans;
+}
+
 // Personality thresholds.
+const CHAFE_AGGRESSION = 75;
+const CHAFE_LOYALTY = 60;
+// Violations older than this (5 minutes) no longer drive attack orders.
+const VIOLATOR_MEMORY_TICKS = 5 * 60 * 10;
 const JOIN_LOYALTY = 70;
 const LEAVE_LOYALTY = 40;
 const BETRAY_LOYALTY = 25;

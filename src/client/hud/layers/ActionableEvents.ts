@@ -6,6 +6,7 @@ import {
   BrokeAllianceUpdate,
   GameUpdateType,
   CoalitionInviteUpdate,
+  PactProposalUpdate,
 } from "@openfront/engine-api/game/GameUpdates";
 import { EventBus } from "@openfront/shared/EventBus";
 import { html, LitElement } from "lit";
@@ -18,6 +19,7 @@ import {
   SendAllianceRejectIntentEvent,
   SendAllianceRequestIntentEvent,
   SendCoalitionIntentEvent,
+  SendPactIntentEvent,
 } from "../../Transport";
 import { UIState } from "../../UIState";
 import { getMessageTypeClasses, translateText } from "../../Utils";
@@ -64,6 +66,7 @@ export class ActionableEvents extends LitElement implements Controller {
       this.onAllianceExtensionEvent.bind(this),
     ],
     [GameUpdateType.CoalitionInvite, this.onCoalitionInviteEvent.bind(this)],
+    [GameUpdateType.PactProposal, this.onPactProposalEvent.bind(this)],
   ] as const;
 
   createRenderRoot() {
@@ -261,6 +264,55 @@ export class ActionableEvents extends LitElement implements Controller {
       duration: this.game.config().allianceRequestDuration(),
       focusID: update.requestorID,
       requestorID: update.requestorID,
+    });
+  }
+
+  // Fork: someone proposed a non-aggression pact.
+  private onPactProposalEvent(update: PactProposalUpdate) {
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer || update.recipientID !== myPlayer.smallID()) return;
+    const proposer = this.game.playerBySmallID(update.proposerID) as PlayerView;
+    const reply = (accept: boolean) =>
+      this.eventBus.emit(
+        new SendPactIntentEvent({
+          type: "pact_reply",
+          proposer: proposer.id(),
+          accept,
+        }),
+      );
+    this.eventBus.emit(new PlaySoundEffectEvent("alliance-suggested"));
+    this.addEvent({
+      description: translateText("pact.proposed", {
+        name: proposer.displayName(),
+        minutes: update.minutes,
+      }),
+      buttons: [
+        {
+          text: translateText("events_display.focus"),
+          className: "btn-gray",
+          action: () => this.eventBus.emit(new GoToPlayerEvent(proposer)),
+          preventClose: true,
+        },
+        {
+          text: translateText("pact.accept"),
+          className: "btn",
+          action: () => {
+            this.eventBus.emit(new PlaySoundEffectEvent("alliance-accepted"));
+            reply(true);
+          },
+        },
+        {
+          text: translateText("pact.decline"),
+          className: "btn-info",
+          action: () => reply(false),
+        },
+      ],
+      type: MessageType.ALLIANCE_REQUEST,
+      createdAt: this.game.ticks(),
+      priority: 0,
+      duration: update.expiresAt - this.game.ticks(),
+      focusID: update.proposerID,
+      requestorID: update.proposerID,
     });
   }
 

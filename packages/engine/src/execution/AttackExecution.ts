@@ -213,6 +213,10 @@ export class AttackExecution implements Execution {
       this.active = false;
       return;
     }
+    // Fork: attacking a pact partner breaks the pact (traitor).
+    if (this.target.isPlayer()) {
+      this.mg.pacts().breakPact(this._owner, this.target);
+    }
 
     this.startTroops ??= this.mg
       .config()
@@ -593,6 +597,12 @@ export class AttackExecution implements Execution {
       defender !== null && this.tankSupport(tile, this._owner);
     input.defenderHasTankSupport =
       defender !== null && this.tankSupport(tile, defender);
+    // Fork: tanks used against a coalition that banned them.
+    if (input.attackerHasTankSupport && defender !== null) {
+      this.mg
+        .coalitions()
+        .reportWeaponUse(this._owner, defender, UnitType.Tank);
+    }
     this.fillForkInputs(input, defender, tile);
     input.falloutRatio = this.mg.hasFallout(tile)
       ? this.mg.numTilesWithFallout() / this.mg.numLandTiles()

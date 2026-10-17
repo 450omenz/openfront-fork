@@ -1,4 +1,7 @@
-import type { CoalitionView } from "@openfront/engine-api/game/GameUpdates";
+import type {
+  CoalitionView,
+  PactView,
+} from "@openfront/engine-api/game/GameUpdates";
 import { GameMap, TileRef } from "@openfront/engine-api/game/GameMap";
 import {
   Cell,
@@ -120,6 +123,8 @@ export class GameView implements GameLike {
   // Fork: the latest coalition list, and each member's coalition.
   private _coalitions: CoalitionView[] = [];
   private _coalitionBySid = new Map<number, CoalitionView>();
+  // Fork: active non-aggression pacts.
+  private _pacts: PactView[] = [];
   /** Alliance clusters: allies changed, or a player was added. */
   private _clustersDirty = true;
 
@@ -238,6 +243,17 @@ export class GameView implements GameLike {
     return this._coalitions;
   }
 
+  /** Fork: the active pact between two players, if any. */
+  pactBetween(aSid: number, bSid: number): PactView | null {
+    return (
+      this._pacts.find(
+        (p) =>
+          (p.aID === aSid && p.bID === bSid) ||
+          (p.aID === bSid && p.bID === aSid),
+      ) ?? null
+    );
+  }
+
   /** Fork: the coalition a player belongs to, if any. */
   coalitionOf(smallID: number): CoalitionView | null {
     return this._coalitionBySid.get(smallID) ?? null;
@@ -288,6 +304,10 @@ export class GameView implements GameLike {
     }
     if (gu.updates[GameUpdateType.Win].length > 0) {
       this._gameOver = true;
+    }
+    const pactUpdates = gu.updates[GameUpdateType.Pacts] ?? [];
+    if (pactUpdates.length > 0) {
+      this._pacts = pactUpdates[pactUpdates.length - 1].pacts;
     }
     const coalitionUpdates = gu.updates[GameUpdateType.Coalitions] ?? [];
     if (coalitionUpdates.length > 0) {

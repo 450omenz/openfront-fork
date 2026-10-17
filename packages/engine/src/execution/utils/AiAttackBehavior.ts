@@ -55,6 +55,7 @@ import {
   hasHighStartingGold,
 } from "../nation/NationUtils";
 import { isProtectedPartner } from "../nation/NationTradeBehavior";
+import { respectsPact } from "../nation/NationTreaties";
 import type { NationWarshipBehavior } from "../nation/NationWarshipBehavior";
 import { friendsForWar } from "../../game/Military";
 import { personalityOf } from "../../game/NationPersonality";
@@ -1311,6 +1312,10 @@ export class AiAttackBehavior {
 
   sendAttack(target: Player | TerraNullius, force = false): boolean {
     if (!force && !this.shouldAttack(target)) return false;
+    // Fork: keep our word under a non-aggression pact (see respectsPact).
+    if (target.isPlayer() && respectsPact(this.game, this.player, target)) {
+      return false;
+    }
 
     if (target.isPlayer()) {
       if (this.player.sharesBorderWith(target)) {

@@ -1,8 +1,12 @@
 import {
+  BANNABLE_WEAPONS,
+  BannableWeapon,
   GameMode,
+  isBannableWeapon,
   MessageType,
   PlayerType,
   Tick,
+  UnitType,
 } from "@openfront/engine-api/game/GameTypes";
 import {
   CoalitionView,
@@ -41,6 +45,10 @@ import { cancelNukesBetween } from "./NukeCancel";
  *    (no trade between them and any member: Player.canTrade) and issues an
  *    attack order (a coalition target: every member's transitive target;
  *    members attacking it count as a joint attack).
+ *  - The leader can ban weapons (BANNABLE_WEAPONS): members can't build
+ *    or launch them (PlayerImpl.canBuild), and an outsider who uses one on
+ *    a member is sanctioned automatically and remembered as a violator
+ *    (nation leaders order attacks on violators first).
  *  - When the leader leaves or is eliminated, the member with the most
  *    land leads. A coalition down to one member dissolves.
  *
@@ -54,6 +62,9 @@ export class CoalitionImpl implements Coalition {
   _sanctions = new Set<Player>();
   _target: { player: Player; tick: Tick } | null = null;
   _lastTargetTick: Tick = -Infinity;
+  _bannedWeapons = new Set<BannableWeapon>();
+  // Outsiders who used a banned weapon on a member, and when (last time).
+  _violators = new Map<Player, Tick>();
 
   constructor(
     private readonly game: Game,
@@ -99,6 +110,12 @@ export class CoalitionImpl implements Coalition {
   }
   createdAt(): Tick {
     return this._createdAt;
+  }
+  bannedWeapons(): ReadonlySet<UnitType> {
+    return this._bannedWeapons;
+  }
+  violators(): ReadonlyMap<Player, Tick> {
+    return this._violators;
   }
 }
 
@@ -352,6 +369,66 @@ export class CoalitionManager implements Coalitions {
     return true;
   }
 
+  setWeaponBan(leader: Player, weapon: UnitType, on: boolean): boolean {
+    const c = this.ledBy(leader);
+    if (c === null || !isBannableWeapon(weapon)) return false;
+    if (on === c._bannedWeapons.has(weapon)) return false;
+    if (on) c._bannedWeapons.add(weapon);
+    else c._bannedWeapons.delete(weapon);
+    for (const m of c._members) {
+      if (m === leader) continue;
+      this.game.displayMessage(
+        on
+          ? "events_display.coalition_weapon_banned"
+          : "events_display.coalition_weapon_allowed",
+        MessageType.ALLIANCE_ACCEPTED,
+        m.id(),
+        undefined,
+        { coalition: c.name(), weapon },
+      );
+    }
+    this.emit();
+    return true;
+  }
+
+  /** The player's coalition bans this weapon for its members. */
+  bans(p: Player, weapon: UnitType): boolean {
+    if (this.index.size === 0) return false;
+    return (
+      this.index.get(p)?._bannedWeapons.has(weapon as BannableWeapon) ?? false
+    );
+  }
+
+  /**
+   * `user` used `weapon` against `victim`. If the victim's coalition bans
+   * it and the user is an outsider: sanction them and record a violation
+   * (members are told once per violator per VIOLATION_NOTICE_TICKS).
+   */
+  reportWeaponUse(user: Player, victim: Player, weapon: UnitType): void {
+    if (this.index.size === 0 || user === victim) return;
+    const c = this.index.get(victim);
+    if (c === undefined || c.has(user)) return;
+    if (!c._bannedWeapons.has(weapon as BannableWeapon)) return;
+    const now = this.game.ticks();
+    const last = c._violators.get(user);
+    c._violators.set(user, now);
+    if (last !== undefined && now - last < VIOLATION_NOTICE_TICKS) return;
+    if (user.type() !== PlayerType.Bot) c._sanctions.add(user);
+    for (const m of c._members) {
+      m.updateRelation(user, -50);
+      this.game.displayMessage(
+        "events_display.coalition_weapon_violation",
+        MessageType.ATTACK_REQUEST,
+        m.id(),
+        undefined,
+        { name: user.displayName(), weapon, coalition: c.name() },
+        undefined,
+        user.id(),
+      );
+    }
+    this.emit();
+  }
+
   /** A player was eliminated: drop them without the traitor mark. */
   removeSilently(p: Player): void {
     const c = this.implOf(p);
@@ -476,6 +553,7 @@ export class CoalitionManager implements Coalitions {
           target === null
             ? null
             : c._target!.tick + this.game.config().coalitionTargetDuration(),
+        bannedWeapons: [...c._bannedWeapons],
       };
     });
   }
@@ -504,6 +582,11 @@ export class CoalitionManager implements Coalitions {
           ? c._lastTargetTick
           : null,
         createdAt: c.createdAt(),
+        bannedWeapons: [...c._bannedWeapons],
+        violators: [...c._violators].map(([p, t]) => ({
+          player: w.player(p),
+          tick: t,
+        })),
       })),
       invites: this.invites.map((i) => ({
         coalitionID: i.coalition.id(),
@@ -535,6 +618,10 @@ export class CoalitionManager implements Coalitions {
           ? null
           : { player: r.player(d.target.player), tick: d.target.tick };
       c._lastTargetTick = d.lastTargetTick ?? -Infinity;
+      c._bannedWeapons = new Set(d.bannedWeapons);
+      c._violators = new Map(
+        d.violators.map((v) => [r.player(v.player), v.tick]),
+      );
       return c;
     });
     this.invites = s.invites.flatMap((i) => {
@@ -556,6 +643,9 @@ export class CoalitionManager implements Coalitions {
   }
 }
 
+// A violator's repeat uses inside this window (1 minute) don't re-notify.
+const VIOLATION_NOTICE_TICKS = 600;
+
 // Most land, then the lowest smallID: the same pick on every client.
 function successor(members: Player[]): Player {
   let best = members[0];
@@ -568,7 +658,18 @@ function successor(members: Player[]): Player {
 
 export const CoalitionsSnapshot = snapshotType({
   name: "Coalitions",
-  version: 1,
+  version: 2,
+  migrations: {
+    // Weapon bans.
+    1: (d) => ({
+      ...d,
+      coalitions: (d.coalitions as object[]).map((c) => ({
+        ...c,
+        bannedWeapons: [],
+        violators: [],
+      })),
+    }),
+  },
   schema: z.object({
     nextID: zInt(),
     coalitions: z.array(
@@ -581,6 +682,8 @@ export const CoalitionsSnapshot = snapshotType({
         target: z.object({ player: zPlayerRef(), tick: zInt() }).nullable(),
         lastTargetTick: zInt().nullable(),
         createdAt: zInt(),
+        bannedWeapons: z.array(z.enum(BANNABLE_WEAPONS)),
+        violators: z.array(z.object({ player: zPlayerRef(), tick: zInt() })),
       }),
     ),
     invites: z.array(
