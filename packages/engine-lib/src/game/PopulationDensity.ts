@@ -116,7 +116,12 @@ export class PopulationDensity {
     if (memo !== undefined && memo.tick === tick) return memo.extra;
 
     let extra = 0; // fixed point
+    // Compares raw owner ids (a player's smallID is never 0, terra nullius'
+    // is): same answer as resolving each tile's owner object, without the
+    // lookup. Runs every tick for a player under attack.
     const me = player.smallID();
+    const w = game.width();
+    const h = game.height();
     for (const type of this.types) {
       const cells = this.discs.get(type)!;
       for (const u of player.units(type)) {
@@ -124,14 +129,12 @@ export class PopulationDensity {
         const cx = game.x(u.tile());
         const cy = game.y(u.tile());
         let owned = 0;
-        for (const c of cells) {
+        for (let i = 0; i < cells.length; i++) {
+          const c = cells[i];
           const x = cx + c.dx;
           const y = cy + c.dy;
-          if (!game.isValidCoord(x, y)) continue;
-          const o = game.owner(game.ref(x, y));
-          if (o.isPlayer() && (o as PlayerLike).smallID() === me) {
-            owned += c.weight;
-          }
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          if (game.ownerID(game.ref(x, y)) === me) owned += c.weight;
         }
         extra += u.level() * owned;
       }

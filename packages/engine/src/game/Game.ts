@@ -581,7 +581,9 @@ export interface Game extends GameLike {
   // Fork (entrenchment): ticks since the tile's owner took it, and how dug
   // in that owner is there (0..1).
   heldFor(tile: TileRef): number;
-  entrenchment(tile: TileRef, owner: Player): number;
+  // baseLevels: the owner's working Military Base levels, when the caller
+  // already has them (attacks compute them once per tick).
+  entrenchment(tile: TileRef, owner: Player, baseLevels?: number): number;
   inSpawnPhase(): boolean;
   endSpawnPhase(): void;
   executeNextTick(): GameUpdates;

@@ -1208,9 +1208,9 @@ export class GameImpl implements Game {
   }
 
   // Fork: 0 (just taken) to 1 (dug in) for the tile's current owner.
-  entrenchment(tile: TileRef, owner: Player): number {
+  entrenchment(tile: TileRef, owner: Player, baseLevels?: number): number {
     const full = this._config.entrenchTicks(
-      this._config.workingMilitaryBases(owner),
+      baseLevels ?? this._config.workingMilitaryBases(owner),
     );
     return Math.min(1, this.heldFor(tile) / full);
   }

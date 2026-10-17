@@ -727,17 +727,12 @@ export class EngineConfig extends Config {
   } {
     let mag = 1;
     let tileCost = 1;
-    const trainedFactor = (t: TrainedInput | undefined): number => {
-      if (t === undefined || t.share <= 0 || t.level <= 0) return 1;
-      const home = t.homeMatch ? 1 + this.homeClimateBonus() : 1;
-      return 1 + t.share * this.trainedBonus(t.level) * home;
-    };
-    const atk = trainedFactor(input.attackerTrained);
+    const atk = this.trainedFactor(input.attackerTrained);
     if (atk !== 1) {
       mag /= atk;
       tileCost /= 1 + (atk - 1) / 2;
     }
-    const def = trainedFactor(input.defenderTrained);
+    const def = this.trainedFactor(input.defenderTrained);
     if (def !== 1) {
       mag *= def;
       tileCost *= 1 + (def - 1) / 2;
@@ -759,6 +754,13 @@ export class EngineConfig extends Config {
       tileCost /= this.jointAttackSpeedBonus();
     }
     return { mag, tileCost };
+  }
+
+  // 1 + the trained share's strength (forkCombatModifiers).
+  private trainedFactor(t: TrainedInput | undefined): number {
+    if (t === undefined || t.share <= 0 || t.level <= 0) return 1;
+    const home = t.homeMatch ? 1 + this.homeClimateBonus() : 1;
+    return 1 + t.share * this.trainedBonus(t.level) * home;
   }
 
   boatAttackAmount(

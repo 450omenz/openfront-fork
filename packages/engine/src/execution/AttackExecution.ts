@@ -24,7 +24,7 @@ import { assertNever } from "@openfront/engine-lib/Util";
 import { z } from "zod";
 import { AttackLogicInput } from "../configuration/EngineConfig";
 import { Attack, Execution, Game, Player, Unit } from "../game/Game";
-import { TrainingSnapshot } from "../game/Military";
+import { TrainedInput, TrainingSnapshot } from "../game/Military";
 import { execSnapshotType } from "../snapshot/ExecutionSnapshot";
 import type {
   ExecRecord,
@@ -34,6 +34,46 @@ import type {
 import { FlatBinaryHeap } from "./utils/FlatBinaryHeap"; // adjust path if needed
 
 const malusForRetreat = 25;
+
+// The attackLogic input for one conquered tile, shared by every attack and
+// refilled for each tile (the engine is single threaded and attackLogic keeps
+// nothing). Module level, not on the execution, so it never shows up in
+// snapshots. Every field is assigned on every fill.
+const SCRATCH_DEFENDER: NonNullable<AttackLogicInput["defender"]> = {
+  type: PlayerType.Human,
+  numTiles: 0,
+  troops: 0,
+  isTraitor: false,
+  isDisconnectedTeammate: false,
+  tileWeight: 1,
+  totalWeight: 1,
+};
+const SCRATCH_ATTACKER_TRAINED: TrainedInput = {
+  share: 0,
+  level: 0,
+  homeMatch: false,
+};
+const SCRATCH_DEFENDER_TRAINED: TrainedInput = {
+  share: 0,
+  level: 0,
+  homeMatch: false,
+};
+const SCRATCH_INPUT: AttackLogicInput = {
+  terrain: TerrainType.Plains,
+  attackTroops: 0,
+  attacker: { type: PlayerType.Human, numTiles: 0 },
+  defender: null,
+  defenderHasDefensePost: false,
+  attackerHasTankSupport: false,
+  attackerTrained: undefined,
+  defenderTrained: undefined,
+  entrenchment: undefined,
+  defenderBaseLevels: undefined,
+  defenderHasAllySupport: undefined,
+  attackerHasJointAttack: undefined,
+  falloutRatio: null,
+  borderSize: 0,
+};
 
 // Fork: per-player training state, memoized for the tick it was taken in.
 // Not on the player itself so it never shows up in snapshots.
@@ -480,18 +520,8 @@ export class AttackExecution implements Execution {
     }
   }
 
-  // Fork: population density of this tile and of the defender's land.
-  private density(
-    defender: Player,
-    tile: TileRef,
-  ): { tileWeight: number; totalWeight: number } {
-    const density = this.mg.config().populationDensity();
-    return {
-      tileWeight: density.tileWeight(this.mg, defender, tile),
-      totalWeight: density.totalWeight(this.mg, defender),
-    };
-  }
-
+  // Builds the input for one conquered tile into the shared scratch objects
+  // (see SCRATCH_INPUT): this runs for every tile of every attack.
   private attackLogicInput(
     attackTroops: number,
     tile: TileRef,
@@ -510,54 +540,79 @@ export class AttackExecution implements Execution {
         UnitType.DefensePost,
         defender.id(),
       );
-    return {
-      terrain: this.map.terrainType(tile),
-      attackTroops,
-      attacker: {
-        type: this._owner.type(),
-        numTiles: this._owner.numTilesOwned(),
-      },
-      defender:
-        defender === null
-          ? null
-          : {
-              type: defender.type(),
-              numTiles: defender.numTilesOwned(),
-              troops: defender.troops(),
-              isTraitor: defender.isTraitor(),
-              isDisconnectedTeammate:
-                defender.isDisconnected() && this._owner.isOnSameTeam(defender),
-              ...this.density(defender, tile),
-            },
-      defenderHasDefensePost,
-      attackerHasTankSupport: defender !== null && this.tankSupport(tile),
-      ...this.forkInputs(defender, tile),
-      falloutRatio: this.mg.hasFallout(tile)
-        ? this.mg.numTilesWithFallout() / this.mg.numLandTiles()
-        : null,
-      borderSize,
-    };
+    const input = SCRATCH_INPUT;
+    input.terrain = this.map.terrainType(tile);
+    input.attackTroops = attackTroops;
+    input.attacker.type = this._owner.type();
+    input.attacker.numTiles = this._owner.numTilesOwned();
+    if (defender === null) {
+      input.defender = null;
+    } else {
+      const d = SCRATCH_DEFENDER;
+      d.type = defender.type();
+      d.numTiles = defender.numTilesOwned();
+      d.troops = defender.troops();
+      d.isTraitor = defender.isTraitor();
+      d.isDisconnectedTeammate =
+        defender.isDisconnected() && this._owner.isOnSameTeam(defender);
+      const density = this.mg.config().populationDensity();
+      d.tileWeight = density.tileWeight(this.mg, defender, tile);
+      d.totalWeight = density.totalWeight(this.mg, defender);
+      input.defender = d;
+    }
+    input.defenderHasDefensePost = defenderHasDefensePost;
+    input.attackerHasTankSupport = defender !== null && this.tankSupport(tile);
+    this.fillForkInputs(input, defender, tile);
+    input.falloutRatio = this.mg.hasFallout(tile)
+      ? this.mg.numTilesWithFallout() / this.mg.numLandTiles()
+      : null;
+    input.borderSize = borderSize;
+    return input;
   }
 
-  // Fork: training, entrenchment and alliance inputs for one tile.
-  private forkInputs(
+  // Fork: training, entrenchment and alliance inputs for one tile. Fields
+  // that don't apply are cleared, as the scratch input is shared.
+  private fillForkInputs(
+    input: AttackLogicInput,
     defender: Player | null,
     tile: TileRef,
-  ): Partial<AttackLogicInput> {
+  ): void {
     const ctx = this.tickCtx;
-    if (defender === null || ctx === null) return {};
-    return {
-      attackerTrained: ctx.attacker.input(this.mg, this.trainedShare, tile),
-      defenderTrained: ctx.defender?.input(
+    if (defender === null || ctx === null) {
+      input.attackerTrained = undefined;
+      input.defenderTrained = undefined;
+      input.entrenchment = undefined;
+      input.defenderBaseLevels = undefined;
+      input.defenderHasAllySupport = undefined;
+      input.attackerHasJointAttack = undefined;
+      return;
+    }
+    input.attackerTrained = ctx.attacker.fill(
+      SCRATCH_ATTACKER_TRAINED,
+      this.mg,
+      this.trainedShare,
+      tile,
+    )
+      ? SCRATCH_ATTACKER_TRAINED
+      : undefined;
+    input.defenderTrained =
+      ctx.defender !== null &&
+      ctx.defender.fill(
+        SCRATCH_DEFENDER_TRAINED,
         this.mg,
         defender.trainedShare(),
         tile,
-      ),
-      entrenchment: this.mg.entrenchment(tile, defender),
-      defenderBaseLevels: ctx.defenderBaseLevels,
-      defenderHasAllySupport: this.allySupport(tile),
-      attackerHasJointAttack: ctx.jointAttack,
-    };
+      )
+        ? SCRATCH_DEFENDER_TRAINED
+        : undefined;
+    input.entrenchment = this.mg.entrenchment(
+      tile,
+      defender,
+      ctx.defenderBaseLevels,
+    );
+    input.defenderBaseLevels = ctx.defenderBaseLevels;
+    input.defenderHasAllySupport = this.allySupport(tile);
+    input.attackerHasJointAttack = ctx.jointAttack;
   }
 
   private rejectIncomingAllianceRequests(target: Player) {

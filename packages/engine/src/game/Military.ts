@@ -17,16 +17,35 @@ export const TRAIN_INTERVAL = 10;
  */
 export function trainingLevel(game: Game, player: Player): number {
   const config = game.config();
-  let level = config.workingMilitaryBases(player);
-  const allies = player.allies();
-  if (allies.length === 0) return level;
+  const level = config.workingMilitaryBases(player);
+  // Cheap check first: lending needs an ally with a working base. Most of the
+  // time there is none, and nearby() (a full border scan whenever any tile on
+  // the map changed hands) is the expensive part.
+  let allyHasBase = false;
+  for (const a of player.allies()) {
+    if (config.workingMilitaryBases(a) > 0) {
+      allyHasBase = true;
+      break;
+    }
+  }
+  if (!allyHasBase) return level;
+  const lent = lentLevels(game, player);
+  return Math.min(
+    level + lent * config.allyTrainingShare(),
+    config.militaryBaseMaxCounted(),
+  );
+}
+
+// Base levels of allies that border the player. Attacks already ask once per
+// player per tick (AttackExecution's trainingFor memo).
+function lentLevels(game: Game, player: Player): number {
+  const config = game.config();
   let lent = 0;
   for (const n of player.nearby()) {
     if (!n.isPlayer() || !player.isAlliedWith(n)) continue;
     lent += config.workingMilitaryBases(n);
   }
-  level += lent * config.allyTrainingShare();
-  return Math.min(level, config.militaryBaseMaxCounted());
+  return lent;
 }
 
 // What the client is told about each player's training, refreshed every
@@ -109,12 +128,17 @@ export class TrainingSnapshot {
   }
 
   input(game: Game, share: number, tile: TileRef): TrainedInput | undefined {
-    if (this.level <= 0 || share <= 0) return undefined;
+    const out = { share: 0, level: 0, homeMatch: false };
+    return this.fill(out, game, share, tile) ? out : undefined;
+  }
+
+  /** input() without allocating: fills `out`, false when there's no effect. */
+  fill(out: TrainedInput, game: Game, share: number, tile: TileRef): boolean {
+    if (this.level <= 0 || share <= 0) return false;
     const c = this.climates.size > 0 ? climateAt(game, tile) : null;
-    return {
-      share,
-      level: this.level,
-      homeMatch: c !== null && this.climates.has(c),
-    };
+    out.share = share;
+    out.level = this.level;
+    out.homeMatch = c !== null && this.climates.has(c);
+    return true;
   }
 }
