@@ -31,7 +31,7 @@ export class CoalitionPanel extends LitElement implements Controller {
 
   @state() private open = false;
   @state() private name = "";
-  // Bumped each tick the panel is open, so countdowns and lists refresh.
+  // Bumped every tick (throttled), so names, countdowns and lists refresh.
   @state() private version = 0;
 
   createRenderRoot() {
@@ -42,10 +42,13 @@ export class CoalitionPanel extends LitElement implements Controller {
     this.eventBus.on(ToggleCoalitionPanelEvent, (e) => {
       this.open = e.open ?? !this.open;
     });
+    // game/eventBus are plain fields set before init: render now.
+    this.requestUpdate();
   }
 
   tick() {
-    if (this.open) this.version++;
+    // The button shows the coalition name, so refresh even when closed.
+    this.version++;
   }
 
   getTickIntervalMs() {
