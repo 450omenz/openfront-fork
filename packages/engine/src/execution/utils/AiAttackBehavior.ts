@@ -56,12 +56,15 @@ import {
 } from "../nation/NationUtils";
 import { isProtectedPartner } from "../nation/NationTradeBehavior";
 import type { NationWarshipBehavior } from "../nation/NationWarshipBehavior";
+import { friendsForWar } from "../../game/Military";
 import { personalityOf } from "../../game/NationPersonality";
 import { TransportShipExecution } from "../TransportShipExecution";
 import { closestTwoTiles } from "../Util";
 
 // Fork: loyalty at which a nation helps allies it's merely neutral toward.
 const LOYAL_ASSIST = 70;
+// Fork: loyalty below which a coalition member ignores attack orders.
+const FOLLOW_ORDER_LOYALTY = 25;
 // Fork: aggression/ambition at which strategies get pulled forward.
 const PULL_TRAIT = 75;
 
@@ -432,6 +435,9 @@ export class AiAttackBehavior {
     ) {
       return;
     }
+
+    // Fork: the coalition leader's attack order, ahead of saving up.
+    if (this.followCoalitionOrder()) return;
 
     // Maybe save up troops until we reach the trigger ratio
     if (!this.hasTriggerRatioTroops() && !this.random.chance(10)) return;
@@ -975,7 +981,8 @@ export class AiAttackBehavior {
   // relation gate or cost: an alliance means showing up when it counts.
   private defendAllies(): boolean {
     if (this.game.config().disableAlliances()) return false;
-    for (const ally of this.player.allies()) {
+    // Allies and fellow coalition members alike.
+    for (const ally of friendsForWar(this.player)) {
       const attackers = ally
         .incomingAttacks()
         .map((a) => a.attacker())
@@ -996,6 +1003,25 @@ export class AiAttackBehavior {
       }
     }
     return false;
+  }
+
+  // Fork: attack the coalition's ordered target. Members with loyalty under
+  // FOLLOW_ORDER_LOYALTY ignore orders; the leader follows its own.
+  private followCoalitionOrder(): boolean {
+    const coalition = this.player.coalition();
+    const target = coalition?.target() ?? null;
+    if (coalition === null || target === null) return false;
+    if (
+      coalition.leader() !== this.player &&
+      personalityOf(this.player).loyalty < FOLLOW_ORDER_LOYALTY
+    ) {
+      return false;
+    }
+    if (this.player.outgoingAttacks().some((a) => a.target() === target)) {
+      return false;
+    }
+    if (this.player.isFriendly(target) || !this.canReach(target)) return false;
+    return this.sendAttack(target);
   }
 
   private assistAllies(): boolean {

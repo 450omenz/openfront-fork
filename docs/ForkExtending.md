@@ -374,3 +374,34 @@ clients.
 
 **Saving.** Pending invites, cooldowns and coalitions are saved in the game
 snapshot (v3, `coalitions`).
+
+### Nations in coalitions
+
+`execution/nation/NationCoalitionBehavior.ts` runs on every nation decision
+tick. It only applies to nations with a personality, and it never draws
+from the PRNG.
+
+- **Invites.** A nation accepts if it doesn't distrust the inviter and has
+  at least one of these reasons:
+  - the inviter is a friend,
+  - a trade partner is already a member,
+  - safety in numbers (only nations with caution 60+ count this),
+  - loyalty 70+.
+
+  It never joins a coalition that has a member it hates.
+
+- **Founding.** A nation with ambition 60+ founds "<Name> Pact" once it has
+  at least two friends or trade partners to invite. If it is still alone
+  after 3 minutes, it disbands the pact.
+- **Leading.** Each cycle the leader invites one candidate, best trade
+  partner first. It sanctions any player that two or more members are
+  Hostile to, and lifts the sanction once none are. While no order is
+  active, it orders an attack on the weakest Hostile neighbor of the
+  coalition.
+- **Following.** `AiAttackBehavior.followCoalitionOrder` attacks the
+  ordered target before the nation saves up troops; members with loyalty
+  under 25 ignore orders. `defendAllies` also defends fellow coalition
+  members.
+- **Leaving.** A member leaves when it comes to distrust the leader and its
+  loyalty is under 40. A member with loyalty under 25 also leaves when it
+  has 3× the troops of a bordering member.

@@ -43,6 +43,7 @@ import type {
   SnapshotWriter,
 } from "../snapshot/SnapshotContext";
 import { NationAllianceBehavior } from "./nation/NationAllianceBehavior";
+import { NationCoalitionBehavior } from "./nation/NationCoalitionBehavior";
 import { NationEmojiBehavior } from "./nation/NationEmojiBehavior";
 import { NationMIRVBehavior } from "./nation/NationMIRVBehavior";
 import { NationNukeBehavior } from "./nation/NationNukeBehavior";
@@ -65,6 +66,7 @@ export class NationExecution implements Execution {
   private nukeBehavior!: NationNukeBehavior;
   private structureBehavior!: NationStructureBehavior;
   private tradeBehavior!: NationTradeBehavior;
+  private coalitionBehavior!: NationCoalitionBehavior;
   // Fork: rolled in init; null when personalities are off (baseline).
   private personality: Personality | null = null;
   private mg: Game;
@@ -251,6 +253,7 @@ export class NationExecution implements Execution {
     this.allianceBehavior.handleAllianceRequests();
     this.allianceBehavior.handleAllianceExtensionRequests();
     this.tradeBehavior.warmToPartners();
+    this.coalitionBehavior.handleCoalitions();
     this.mirvBehavior.considerMIRV();
     this.structureBehavior.handleStructures();
     this.warshipBehavior.maybeSpawnWarship();
@@ -310,6 +313,7 @@ export class NationExecution implements Execution {
       this.player,
     );
     this.tradeBehavior = new NationTradeBehavior(this.mg, this.player);
+    this.coalitionBehavior = new NationCoalitionBehavior(this.mg, this.player);
     this.behaviorsInitialized = true;
   }
 
@@ -518,7 +522,9 @@ export class NationExecution implements Execution {
     );
     nuke.restoreSnapshot(b.nuke, r, random, player, attack, emoji);
     structure.restoreSnapshot(b.structure, r, random, player);
-    this.tradeBehavior = new NationTradeBehavior(r.game, player); // stateless
+    // Stateless behaviors.
+    this.tradeBehavior = new NationTradeBehavior(r.game, player);
+    this.coalitionBehavior = new NationCoalitionBehavior(r.game, player);
     this.emojiBehavior = emoji;
     this.mirvBehavior = mirv;
     this.allianceBehavior = alliance;
