@@ -149,7 +149,7 @@ export class CoalitionPanel extends LitElement implements Controller {
       </div>
       <div class="flex gap-1">
         <input
-          class="flex-1 min-w-0 px-2 py-1 rounded-sm bg-gray-900 text-sm"
+          class="flex-1 min-w-0 px-2 py-1 rounded-sm bg-gray-900 text-sm text-white placeholder:text-slate-400 caret-white"
           maxlength=${COALITION_NAME_MAX}
           placeholder=${translateText("coalition.name_placeholder")}
           .value=${this.name}
