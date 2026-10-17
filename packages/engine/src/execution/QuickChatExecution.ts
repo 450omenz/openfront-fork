@@ -1,3 +1,4 @@
+import { answerDiplomacyChat } from "./nation/NationDiplomacyChat";
 import { PlayerID } from "@openfront/engine-api/game/GameTypes";
 import { zPlayerRef } from "@openfront/engine-lib/snapshot/SnapshotType";
 import { z } from "zod";
@@ -44,6 +45,15 @@ export class QuickChatExecution implements Execution {
     const message = this.getMessageFromKey(this.quickChatKey);
 
     this.sender.recordQuickChat(this.recipient);
+    // Fork: nations answer diplomacy phrases.
+    if (this.quickChatKey.startsWith("diplomacy.")) {
+      answerDiplomacyChat(
+        this.mg,
+        this.recipient,
+        this.sender,
+        this.quickChatKey,
+      );
+    }
 
     this.mg.displayChat(
       message[1],

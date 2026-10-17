@@ -478,3 +478,42 @@ not to attack each other for 5, 10 or 20 minutes (`PACT_MINUTES`).
 - **Keeping the pact.** `respectsPact` keeps nations from attacking or
   nuking a partner. The exception is a backstab: a nation with loyalty
   under 25 that has 3× the partner's troops.
+
+### Diplomacy menus
+
+- **Radial menu.** Right-clicking a player's land (not a tribe) shows a
+  Diplomacy slot (`diplomacyMenuElement` in `RadialMenuElements.ts`):
+  - **Pact.** What it offers depends on the pact's state:
+    - you can propose one: pick 5, 10 or 20 minutes;
+    - you have one: break it (shows the minutes left);
+    - they proposed one to you: Sign or Decline;
+    - you proposed one and they haven't answered: a disabled "Pact
+      proposed" note.
+  - **Messages.** The Diplomacy quick-chat phrases.
+  - **Coalition actions** your role allows: invite, order an attack,
+    sanction or lift a sanction.
+
+  On your own land the slot opens the Diplomacy panel instead. Every item
+  has a tooltip that explains its rules.
+
+- **Player panel.** Shows the same pact states as buttons.
+- **Diplomacy panel** (top right). Lists your pacts with the time left and
+  a Break button, plus a "How diplomacy works" guide.
+- **Quick chat.** There's a new Diplomacy category (`resources/QuickChat.json`):
+  - pact,
+  - ceasefire,
+  - join you,
+  - join me,
+  - trade.
+
+  Nations with a personality answer these phrases
+  (`NationDiplomacyChat.ts`) using the same judgement as their own
+  diplomacy, and act when the answer is yes:
+  - pact: propose one back;
+  - ceasefire: call off their attacks on you and offer a pact;
+  - join you: invite you into their coalition;
+  - join me: say whether they'd accept your invite;
+  - trade: lift their embargo.
+
+- **Interaction flags.** `pactOfferedMinutes` and `pactAwaitingReply` are
+  set on `PlayerInteraction` so menus can show those states.

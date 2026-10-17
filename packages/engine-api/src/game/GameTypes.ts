@@ -504,6 +504,10 @@ export interface PlayerInteraction {
   canProposePact?: boolean;
   /** Tick our pact with this player ends, if we have one. */
   pactExpiresAt?: Tick;
+  /** They proposed a pact to us: its length in minutes. */
+  pactOfferedMinutes?: number;
+  /** We proposed a pact to them and await their answer. */
+  pactAwaitingReply?: boolean;
 }
 
 export interface EmojiMessage {

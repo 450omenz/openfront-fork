@@ -274,5 +274,27 @@
       "key": "pirating",
       "requiresPlayer": true
     }
+  ],
+  "diplomacy": [
+    {
+      "key": "pact",
+      "requiresPlayer": false
+    },
+    {
+      "key": "ceasefire",
+      "requiresPlayer": false
+    },
+    {
+      "key": "join_you",
+      "requiresPlayer": false
+    },
+    {
+      "key": "join_me",
+      "requiresPlayer": false
+    },
+    {
+      "key": "trade",
+      "requiresPlayer": false
+    }
   ]
 }

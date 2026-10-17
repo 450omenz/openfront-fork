@@ -346,6 +346,14 @@ export class GameRunner {
         ...this.coalitionInteraction(player, other),
         canProposePact: this.game.pacts().canPropose(player, other),
         pactExpiresAt: this.game.pacts().between(player, other)?.expiresAt,
+        pactOfferedMinutes: this.game
+          .pacts()
+          .proposalsFor(player)
+          .find((x) => x.proposer === other)?.minutes,
+        pactAwaitingReply: this.game
+          .pacts()
+          .proposalsFor(other)
+          .some((x) => x.proposer === player),
       };
     }
 

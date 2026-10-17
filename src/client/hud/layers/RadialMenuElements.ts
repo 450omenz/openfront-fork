@@ -5,13 +5,19 @@ import {
   bulkCost,
   maxBulkAmount,
   NUKE_BULK_STEPS,
+  PACT_MINUTES,
   PlayerActions,
   PlayerBuildableUnitType,
+  PlayerType,
   STRUCTURE_BULK_STEPS,
   Structures,
   UnitType,
 } from "@openfront/engine-api/game/GameTypes";
-import { Emoji, flattenedEmojiTable } from "@openfront/engine-api/Schemas";
+import {
+  CoalitionIntent,
+  Emoji,
+  flattenedEmojiTable,
+} from "@openfront/engine-api/Schemas";
 import { Config } from "@openfront/engine-lib/configuration/Config";
 import { renderNumber } from "@openfront/engine-lib/Format";
 import { findClosestBy } from "@openfront/engine-lib/Util";
@@ -29,8 +35,12 @@ import { TooltipItem } from "./RadialMenu";
 import { EventBus } from "@openfront/shared/EventBus";
 import {
   BuildUnitIntentEvent,
+  SendCoalitionIntentEvent,
+  SendPactIntentEvent,
+  SendQuickChatEvent,
   SendUpgradeStructureIntentEvent,
 } from "../../Transport";
+import { ToggleCoalitionPanelEvent } from "./CoalitionPanel";
 const allianceIcon = assetUrl("images/AllianceIconWhite.svg");
 const boatIcon = assetUrl("images/BoatIconWhite.svg");
 const buildIcon = assetUrl("images/BuildIconWhite.svg");
@@ -43,6 +53,9 @@ const swordIcon = assetUrl("images/SwordIconWhite.svg");
 const targetIcon = assetUrl("images/TargetIconWhite.svg");
 const traitorIcon = assetUrl("images/TraitorIconWhite.svg");
 const xIcon = assetUrl("images/XIcon.svg");
+const diplomacyIcon = assetUrl("images/GuildIconWhite.svg");
+const pactIcon = assetUrl("images/ShieldIconWhite.svg");
+const embargoIcon = assetUrl("images/EmbargoWhiteIcon.svg");
 
 export interface MenuElementParams {
   myPlayer: PlayerView;
@@ -108,6 +121,8 @@ export const COLORS = {
   infoEmoji: "#fbbf24",
   trade: "#0891b2",
   embargo: "#7c3aed",
+  diplomacy: "#0ea5e9",
+  pact: "#14b8a6",
   tooltip: {
     cost: "#f59e0b",
     count: "#94a3b8",
@@ -120,6 +135,7 @@ export const COLORS = {
     greet: "#f97316",
     misc: "#a855f7",
     warnings: "#fbbf24",
+    diplomacy: "#0ea5e9",
   },
 };
 
@@ -139,6 +155,15 @@ function isFriendlyTarget(params: MenuElementParams): boolean {
   const isFriendly = (selectedPlayer as PlayerView).isFriendly;
   if (typeof isFriendly !== "function") return false;
   return isFriendly.call(selectedPlayer, params.myPlayer);
+}
+
+// Fork: players you can do diplomacy with (not tribes).
+function isDiplomacyTarget(params: MenuElementParams): boolean {
+  const selectedPlayer = params.selected;
+  if (selectedPlayer === null) return false;
+  const type = (selectedPlayer as PlayerView).type;
+  if (typeof type !== "function") return false;
+  return type.call(selectedPlayer) !== PlayerType.Bot;
 }
 
 function isDisconnectedTarget(params: MenuElementParams): boolean {
@@ -779,6 +804,308 @@ export const centerButtonElement: CenterButtonElement = {
   },
 };
 
+// ---------- Fork: diplomacy (pacts, coalitions, diplomatic messages) ----------
+
+const tip = (title: string, description: string): TooltipItem[] => [
+  { text: title, className: "title" },
+  { text: description, className: "description" },
+];
+
+// One leaf per pact length; the tooltip spells out the rules.
+function pactLengthElements(): MenuElement[] {
+  return PACT_MINUTES.map((minutes) => ({
+    id: `pact_${minutes}`,
+    name: `pact ${minutes}`,
+    text: translateText("radial.pact_minutes", { minutes }),
+    fontSize: "16px",
+    disabled: (p: MenuElementParams) =>
+      !p.playerActions.interaction?.canProposePact,
+    color: COLORS.pact,
+    tooltipItems: tip(
+      translateText("pact.propose", { minutes }),
+      translateText("pact.propose_desc", { minutes }),
+    ),
+    action: (p: MenuElementParams) => {
+      p.eventBus.emit(
+        new SendPactIntentEvent({
+          type: "pact_propose",
+          recipient: p.selected!.id(),
+          minutes,
+        }),
+      );
+      p.closeMenu();
+    },
+  }));
+}
+
+// They proposed a pact to us: sign or decline, right from the menu.
+function pactReplyElements(minutes: number): MenuElement[] {
+  const reply = (accept: boolean) => (p: MenuElementParams) => {
+    p.eventBus.emit(
+      new SendPactIntentEvent({
+        type: "pact_reply",
+        proposer: p.selected!.id(),
+        accept,
+      }),
+    );
+    p.closeMenu();
+  };
+  return [
+    {
+      id: "pact_sign",
+      name: "sign",
+      text: translateText("radial.pact_sign", { minutes }),
+      fontSize: "12px",
+      color: COLORS.pact,
+      disabled: () => false,
+      tooltipItems: tip(
+        translateText("radial.pact_sign", { minutes }),
+        translateText("radial.pact_sign_desc", { minutes }),
+      ),
+      action: reply(true),
+    },
+    {
+      id: "pact_decline",
+      name: "decline",
+      icon: xIcon,
+      color: COLORS.breakAllyNoDebuff,
+      disabled: () => false,
+      tooltipItems: tip(translateText("pact.decline"), ""),
+      action: reply(false),
+    },
+  ];
+}
+
+const pactElement: MenuElement = {
+  id: "diplomacy_pact",
+  name: "pact",
+  icon: pactIcon,
+  color: (p: MenuElementParams) =>
+    p.playerActions.interaction?.pactExpiresAt !== undefined
+      ? COLORS.breakAlly
+      : COLORS.pact,
+  disabled: (p: MenuElementParams) => {
+    const i = p.playerActions.interaction;
+    return (
+      !i?.canProposePact &&
+      i?.pactExpiresAt === undefined &&
+      i?.pactOfferedMinutes === undefined &&
+      !i?.pactAwaitingReply
+    );
+  },
+  tooltipItems: tip(
+    translateText("radial.pact"),
+    translateText("radial.pact_desc"),
+  ),
+  // With a pact: one leaf that breaks it. Offered one: sign or decline.
+  // Asked for one: a note that we're waiting. Otherwise: pick a length.
+  subMenu: (p: MenuElementParams) => {
+    const i = p.playerActions.interaction;
+    const until = i?.pactExpiresAt;
+    if (until === undefined && i?.pactOfferedMinutes !== undefined) {
+      return pactReplyElements(i.pactOfferedMinutes);
+    }
+    if (until === undefined && i?.pactAwaitingReply) {
+      return [
+        {
+          id: "pact_waiting",
+          name: "waiting",
+          text: translateText("radial.pact_waiting"),
+          fontSize: "11px",
+          color: COLORS.disabled,
+          disabled: () => true,
+          tooltipItems: tip(
+            translateText("radial.pact_waiting"),
+            translateText("radial.pact_waiting_desc"),
+          ),
+        },
+      ];
+    }
+    if (until === undefined) return pactLengthElements();
+    const minutes = Math.max(1, Math.ceil((until - p.game.ticks()) / 600));
+    return [
+      {
+        id: "pact_break",
+        name: "break pact",
+        icon: traitorIcon,
+        color: COLORS.breakAlly,
+        disabled: () => false,
+        tooltipItems: tip(
+          translateText("pact.break", { minutes }),
+          translateText("pact.break_desc"),
+        ),
+        action: (q: MenuElementParams) => {
+          q.eventBus.emit(
+            new SendPactIntentEvent({
+              type: "pact_break",
+              target: q.selected!.id(),
+            }),
+          );
+          q.closeMenu();
+        },
+      },
+    ];
+  },
+};
+
+function coalitionLeaf(
+  id: string,
+  icon: string,
+  color: string,
+  titleKey: string,
+  descKey: string,
+  shown: (p: MenuElementParams) => boolean,
+  intent: (p: MenuElementParams) => CoalitionIntent,
+): MenuElement {
+  return {
+    id,
+    name: id,
+    icon,
+    color,
+    displayed: shown,
+    disabled: (p) => !shown(p),
+    tooltipItems: tip(translateText(titleKey), translateText(descKey)),
+    action: (p) => {
+      p.eventBus.emit(new SendCoalitionIntentEvent(intent(p)));
+      p.closeMenu();
+    },
+  };
+}
+
+// The Diplomacy messages: quick-chat phrases nations answer and act on.
+const diplomacyChatElement: MenuElement = {
+  id: "diplomacy_chat",
+  name: "messages",
+  icon: chatIcon,
+  color: COLORS.chat.diplomacy,
+  disabled: () => false,
+  tooltipItems: tip(
+    translateText("radial.messages"),
+    translateText("radial.messages_desc"),
+  ),
+  subMenu: () =>
+    DIPLOMACY_PHRASES.map((key) => {
+      const text = translateText(`chat.diplomacy.${key}`);
+      return {
+        id: `diplomacy_chat_${key}`,
+        name: text,
+        text: text.length > 15 ? `${text.slice(0, 12)}...` : text,
+        fontSize: "10px",
+        color: COLORS.chat.diplomacy,
+        disabled: () => false,
+        tooltipItems: [{ text, className: "description" }],
+        action: (p: MenuElementParams) => {
+          p.eventBus.emit(
+            new SendQuickChatEvent(p.selected!, `diplomacy.${key}`, undefined),
+          );
+          p.closeMenu();
+        },
+      };
+    }),
+};
+
+const DIPLOMACY_PHRASES = [
+  "pact",
+  "ceasefire",
+  "join_you",
+  "join_me",
+  "trade",
+] as const;
+
+/**
+ * Fork: the Diplomacy slot. On another player: pacts, coalition actions
+ * your role allows, and diplomatic messages. On your own land: opens the
+ * coalition & pacts panel.
+ */
+export const diplomacyMenuElement: MenuElement = {
+  id: "diplomacy",
+  name: "diplomacy",
+  icon: diplomacyIcon,
+  color: COLORS.diplomacy,
+  disabled: (p: MenuElementParams) =>
+    p.selected === null || p.game.inSpawnPhase(),
+  tooltipItems: tip(
+    translateText("radial.diplomacy"),
+    translateText("radial.diplomacy_desc"),
+  ),
+  subMenu: (p: MenuElementParams) => {
+    if (p.selected === p.myPlayer) {
+      return [
+        {
+          id: "diplomacy_panel",
+          name: "panel",
+          icon: diplomacyIcon,
+          color: COLORS.diplomacy,
+          disabled: () => false,
+          tooltipItems: tip(
+            translateText("radial.open_panel"),
+            translateText("radial.open_panel_desc"),
+          ),
+          action: (q: MenuElementParams) => {
+            q.eventBus.emit(new ToggleCoalitionPanelEvent(true));
+            q.closeMenu();
+          },
+        },
+      ];
+    }
+    const i = (q: MenuElementParams) => q.playerActions.interaction;
+    const target = (q: MenuElementParams) => q.selected!.id();
+    const items: MenuElement[] = [
+      pactElement,
+      diplomacyChatElement,
+      coalitionLeaf(
+        "coalition_invite",
+        allianceIcon,
+        COLORS.ally,
+        "coalition.invite",
+        "radial.invite_desc",
+        (q) => !!i(q)?.canCoalitionInvite,
+        (q) => ({ type: "coalition_invite", recipient: target(q) }),
+      ),
+      coalitionLeaf(
+        "coalition_target",
+        targetIcon,
+        COLORS.target,
+        "coalition.target",
+        "coalition.target_desc",
+        (q) => !!i(q)?.canCoalitionTarget,
+        (q) => ({ type: "coalition_target", target: target(q) }),
+      ),
+      coalitionLeaf(
+        "coalition_sanction",
+        embargoIcon,
+        COLORS.embargo,
+        "coalition.sanction",
+        "coalition.sanction_desc",
+        (q) => !!i(q)?.canCoalitionSanction,
+        (q) => ({
+          type: "coalition_sanction",
+          target: target(q),
+          action: "start",
+        }),
+      ),
+      coalitionLeaf(
+        "coalition_unsanction",
+        embargoIcon,
+        COLORS.trade,
+        "coalition.unsanction",
+        "coalition.unsanction",
+        (q) => !!i(q)?.canCoalitionUnsanction,
+        (q) => ({
+          type: "coalition_sanction",
+          target: target(q),
+          action: "stop",
+        }),
+      ),
+    ];
+    return items.filter(
+      (e) =>
+        e.displayed === undefined ||
+        (typeof e.displayed === "function" ? e.displayed(p) : e.displayed),
+    );
+  },
+};
+
 export const rootMenuElement: MenuElement = {
   id: "root",
   name: "root",
@@ -808,13 +1135,17 @@ export const rootMenuElement: MenuElement = {
     const showDonateInsteadOfAttack =
       isFriendlyTarget(params) && !isDisconnected && !hasBuildableAttacks;
 
+    // Fork: Diplomacy on any player's land except bots'.
+    const diplomacy = isDiplomacyTarget(params) ? diplomacyMenuElement : null;
+
     const menuItems: (MenuElement | null)[] = [
       infoMenuElement,
       ...(isOwnTerritory
-        ? [deleteUnitElement, allyRequestElement, buildMenuElement]
+        ? [deleteUnitElement, allyRequestElement, buildMenuElement, diplomacy]
         : [
             isAllied && !isDisconnected ? allyBreakElement : boatMenuElement,
             inExtensionWindow ? allyExtendElement : allyRequestElement,
+            diplomacy,
             showDonateInsteadOfAttack
               ? donateGoldRadialElement
               : attackMenuElement,

@@ -122,6 +122,7 @@ export class ChatModal extends LitElement {
     { id: "greet" },
     { id: "misc" },
     { id: "warnings" },
+    { id: "diplomacy" },
   ];
 
   render() {

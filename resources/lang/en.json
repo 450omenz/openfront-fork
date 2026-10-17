@@ -233,6 +233,7 @@
     "cat": {
       "attack": "Attack",
       "defend": "Defend",
+      "diplomacy": "Diplomacy",
       "greet": "Greetings",
       "help": "Help",
       "misc": "Miscellaneous",
@@ -246,6 +247,13 @@
       "defend_from": "Defend from [P1]!",
       "dont_attack": "Don’t attack [P1]!",
       "make_ally": "Ally with [P1]!"
+    },
+    "diplomacy": {
+      "ceasefire": "Let's stop fighting.",
+      "join_me": "Will you join my coalition?",
+      "join_you": "Can I join your coalition?",
+      "pact": "Want a non-aggression pact?",
+      "trade": "Let's trade: lift your embargo?"
     },
     "from": "From {user}: {msg}",
     "greet": {
@@ -838,6 +846,19 @@
     "info_troops_same": "the same max troops as a human",
     "medium": "Medium"
   },
+  "diplomacy": {
+    "break": "Break",
+    "how_bans": "A coalition leader can ban weapons (nukes, tanks, warships). Members can't build them; outsiders who use them on members get sanctioned.",
+    "how_break": "Attacking, invading or nuking a pact partner breaks the pact and marks you a traitor. So does pressing Break.",
+    "how_coalition": "Found a coalition here, then invite players from their panel or Diplomacy menu. Members are at peace and fight together.",
+    "how_messages": "Diplomacy → Messages asks nations for a pact, a ceasefire, a coalition seat or trade. Nations answer by personality and act on a yes.",
+    "how_pact": "Right-click a player → Diplomacy (shield) → Pact, then pick 5, 10 or 20 minutes. The player panel has the same buttons.",
+    "how_reply": "They get a card to Sign or Decline. After a refusal you wait 2 minutes before asking them again.",
+    "how_title": "How diplomacy works",
+    "minutes_left": "{minutes}m left",
+    "pacts": "Non-aggression pacts ({count})",
+    "title": "Diplomacy"
+  },
   "discord_user_header": {
     "avatar_alt": "Avatar"
   },
@@ -937,6 +958,13 @@
     "coalition_weapon_banned": "{coalition} banned {weapon}",
     "coalition_weapon_violation": "{name} used a banned weapon ({weapon}) against {coalition}! They are now sanctioned.",
     "conquered_no_gold": "Conquered {name} (didn't play, no gold awarded)",
+    "diplomacy_ceasefire_yes": "{name} agrees to a ceasefire: they call off their attacks and offer a pact",
+    "diplomacy_join_me_yes": "{name} would join your coalition: send them an invite",
+    "diplomacy_join_you_yes": "{name} invites you into {coalition}",
+    "diplomacy_no": "{name} refuses",
+    "diplomacy_no_coalition": "{name} doesn't lead a coalition",
+    "diplomacy_pact_yes": "{name} is open to it and proposes a pact",
+    "diplomacy_trade_yes": "{name} lifts its embargo on you",
     "duration_second": "1 second",
     "duration_seconds_plural": "{seconds} seconds",
     "focus": "Focus",
@@ -1817,7 +1845,7 @@
     "decline": "Decline",
     "propose": "Pact {minutes}m",
     "propose_desc": "Propose a {minutes}-minute non-aggression pact. Attacking a pact partner breaks it and marks the attacker a traitor.",
-    "proposed": "{name} proposes a {minutes}-minute non-aggression pact"
+    "proposed": "{name} proposes a {minutes}-minute non-aggression pact. While it lasts, attacking each other breaks it and brands the attacker a traitor."
   },
   "performance_overlay": {
     "avg_60s": "Avg (60s):",
@@ -2181,6 +2209,22 @@
     "close": "Close",
     "title": "Enjoying OpenFront?",
     "visit_store": "Visit store"
+  },
+  "radial": {
+    "diplomacy": "Diplomacy",
+    "diplomacy_desc": "Non-aggression pacts, coalition actions and diplomatic messages for this player.",
+    "invite_desc": "Invite this player into your coalition: lasting peace, allied trade and joint defense.",
+    "messages": "Diplomatic messages",
+    "messages_desc": "Ask about a pact, a ceasefire, joining a coalition or lifting an embargo. Nations answer, and act on a yes.",
+    "open_panel": "Coalition & pacts",
+    "open_panel_desc": "Your coalition, your active pacts and how diplomacy works.",
+    "pact": "Non-aggression pact",
+    "pact_desc": "Promise not to attack each other for 5, 10 or 20 minutes. Breaking it, or attacking a partner, marks you a traitor.",
+    "pact_minutes": "{minutes} min",
+    "pact_sign": "Sign {minutes}m pact",
+    "pact_sign_desc": "They proposed a {minutes}-minute non-aggression pact. While it lasts, attacking each other breaks it and brands the attacker a traitor.",
+    "pact_waiting": "Pact proposed",
+    "pact_waiting_desc": "You proposed a pact; they haven't answered yet. Proposals lapse after a short while."
   },
   "radial_menu": {
     "delete_unit_description": "Deconstruct the nearest building or tank (50% refund)",

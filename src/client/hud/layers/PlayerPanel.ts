@@ -374,6 +374,46 @@ export class PlayerPanel extends LitElement implements Controller {
         })}
       </div>`;
     }
+    if (i.pactOfferedMinutes !== undefined) {
+      const minutes = i.pactOfferedMinutes;
+      const reply = (accept: boolean) => (e: MouseEvent) =>
+        this.pactAction(e, {
+          type: "pact_reply",
+          proposer: other.id(),
+          accept,
+        });
+      return html`<div class="grid auto-cols-fr grid-flow-col gap-1">
+        ${actionButton({
+          onClick: reply(true),
+          icon: allianceIcon,
+          iconAlt: "Sign pact",
+          title: translateText("radial.pact_sign_desc", { minutes }),
+          label: translateText("radial.pact_sign", { minutes }),
+          type: "green",
+        })}
+        ${actionButton({
+          onClick: reply(false),
+          icon: breakAllianceIcon,
+          iconAlt: "Decline pact",
+          title: translateText("pact.decline"),
+          label: translateText("pact.decline"),
+          type: "red",
+        })}
+      </div>`;
+    }
+    if (i.pactAwaitingReply) {
+      return html`<div class="grid auto-cols-fr grid-flow-col gap-1">
+        ${actionButton({
+          onClick: (e: MouseEvent) => e.stopPropagation(),
+          icon: allianceIcon,
+          iconAlt: "Pact proposed",
+          title: translateText("radial.pact_waiting_desc"),
+          label: translateText("radial.pact_waiting"),
+          type: "normal",
+          disabled: true,
+        })}
+      </div>`;
+    }
     if (!i.canProposePact) return "";
     return html`<div class="grid auto-cols-fr grid-flow-col gap-1">
       ${PACT_MINUTES.map((minutes) =>

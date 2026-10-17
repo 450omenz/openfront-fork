@@ -12,7 +12,7 @@ import { EventBus, GameEvent } from "@openfront/shared/EventBus";
 import { html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { Controller } from "../../Controller";
-import { SendCoalitionIntentEvent } from "../../Transport";
+import { SendCoalitionIntentEvent, SendPactIntentEvent } from "../../Transport";
 import { translateText } from "../../Utils";
 import { GameView, PlayerView } from "../../view";
 
@@ -188,6 +188,65 @@ export class CoalitionPanel extends LitElement implements Controller {
       </div>`;
   }
 
+  // Fork: our non-aggression pacts, with time left and a break button.
+  private renderPacts(me: PlayerView) {
+    const pacts = this.game.pactsOf(me.smallID());
+    if (pacts.length === 0) return "";
+    return html`<div class="mt-2 pt-2 border-t border-white/10">
+      <div class="text-xs uppercase tracking-wide text-slate-400 mb-1">
+        ${translateText("diplomacy.pacts", { count: pacts.length })}
+      </div>
+      ${pacts.map((p) => {
+        const other = this.player(p.aID === me.smallID() ? p.bID : p.aID);
+        const minutes = Math.max(
+          1,
+          Math.ceil((p.expiresAt - this.game.ticks()) / 600),
+        );
+        return html`<div class="flex items-center gap-2 text-sm py-0.5">
+          <span class="flex-1 truncate">🛡 ${other?.displayName() ?? "?"}</span>
+          <span class="text-slate-400"
+            >${translateText("diplomacy.minutes_left", { minutes })}</span
+          >
+          <button
+            class="px-1.5 rounded-sm bg-red-700 hover:bg-red-600 text-xs"
+            title=${translateText("pact.break_desc")}
+            @click=${() =>
+              other !== null &&
+              this.eventBus.emit(
+                new SendPactIntentEvent({
+                  type: "pact_break",
+                  target: other.id(),
+                }),
+              )}
+          >
+            ${translateText("diplomacy.break")}
+          </button>
+        </div>`;
+      })}
+    </div>`;
+  }
+
+  // Fork: a short, always-available guide to pacts, coalitions and bans.
+  private renderHowTo() {
+    return html`<details class="mt-2 pt-2 border-t border-white/10">
+      <summary
+        class="text-xs uppercase tracking-wide text-slate-400 cursor-pointer"
+      >
+        ${translateText("diplomacy.how_title")}
+      </summary>
+      <ul class="mt-1 text-xs text-slate-300 list-disc pl-4 space-y-1">
+        ${[
+          "how_pact",
+          "how_reply",
+          "how_break",
+          "how_messages",
+          "how_coalition",
+          "how_bans",
+        ].map((k) => html`<li>${translateText(`diplomacy.${k}`)}</li>`)}
+      </ul>
+    </details>`;
+  }
+
   private renderCreate() {
     const others = this.game.coalitions();
     return html`
@@ -250,7 +309,7 @@ export class CoalitionPanel extends LitElement implements Controller {
           @contextmenu=${(e: Event) => e.preventDefault()}
         >
           <span>🤝</span>
-          <span>${mine?.name ?? translateText("coalition.title")}</span>
+          <span>${mine?.name ?? translateText("diplomacy.title")}</span>
         </button>
         ${this.open
           ? html`<div
@@ -258,6 +317,7 @@ export class CoalitionPanel extends LitElement implements Controller {
               @contextmenu=${(e: Event) => e.preventDefault()}
             >
               ${mine !== null ? this.renderMine(me, mine) : this.renderCreate()}
+              ${this.renderPacts(me)} ${this.renderHowTo()}
             </div>`
           : ""}
       </div>

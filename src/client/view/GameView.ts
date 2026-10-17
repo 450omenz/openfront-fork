@@ -243,6 +243,11 @@ export class GameView implements GameLike {
     return this._coalitions;
   }
 
+  /** Fork: every active pact a player is in. */
+  pactsOf(sid: number): readonly PactView[] {
+    return this._pacts.filter((p) => p.aID === sid || p.bID === sid);
+  }
+
   /** Fork: the active pact between two players, if any. */
   pactBetween(aSid: number, bSid: number): PactView | null {
     return (
