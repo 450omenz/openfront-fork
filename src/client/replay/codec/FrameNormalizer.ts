@@ -87,6 +87,7 @@ export const UPDATE_TYPE_ROUTING: Record<
   CoalitionInvite: "misc",
   Pacts: "misc",
   PactProposal: "misc",
+  CoalitionJoinRequest: "misc",
 };
 
 /**

@@ -19,7 +19,9 @@ export type CoalitionAction =
   | { kind: "sanction"; target: PlayerID; on: boolean }
   | { kind: "target"; target: PlayerID }
   | { kind: "transfer"; target: PlayerID }
-  | { kind: "ban"; weapon: UnitType; on: boolean };
+  | { kind: "ban"; weapon: UnitType; on: boolean }
+  | { kind: "request"; coalitionID: number }
+  | { kind: "answer"; target: PlayerID; accept: boolean };
 
 /**
  * Applies one coalition action for `player` in init, then ends. The
@@ -50,6 +52,11 @@ export class CoalitionExecution implements Execution {
       case "ban":
         c.setWeaponBan(this.player, a.weapon, a.on);
         return;
+      case "request": {
+        const coalition = c.get(a.coalitionID);
+        if (coalition !== null) c.requestJoin(this.player, coalition);
+        return;
+      }
     }
     const other = target(a.target);
     if (other === null) return;
@@ -68,6 +75,9 @@ export class CoalitionExecution implements Execution {
         return;
       case "transfer":
         c.transfer(this.player, other);
+        return;
+      case "answer":
+        c.answerRequest(this.player, other, a.accept);
         return;
     }
   }
@@ -114,6 +124,12 @@ const CoalitionStateSchema = z.object({
     }),
     z.object({ kind: z.literal("target"), target: z.string() }),
     z.object({ kind: z.literal("transfer"), target: z.string() }),
+    z.object({ kind: z.literal("request"), coalitionID: z.number().int() }),
+    z.object({
+      kind: z.literal("answer"),
+      target: z.string(),
+      accept: z.boolean(),
+    }),
     z.object({
       kind: z.literal("ban"),
       weapon: z.enum(UnitType),

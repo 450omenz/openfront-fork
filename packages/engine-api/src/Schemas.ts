@@ -601,6 +601,16 @@ export const CoalitionBanIntentSchema = z.object({
   action: z.union([z.literal("start"), z.literal("stop")]),
 });
 
+export const CoalitionRequestIntentSchema = z.object({
+  type: z.literal("coalition_request"),
+  coalitionID: zb.uint(),
+});
+export const CoalitionRequestReplyIntentSchema = z.object({
+  type: z.literal("coalition_request_reply"),
+  applicant: MappedID,
+  accept: z.boolean(),
+});
+
 // Fork: non-aggression pacts.
 export const PactProposeIntentSchema = z.object({
   type: z.literal("pact_propose"),
@@ -622,6 +632,8 @@ export type PactIntent =
   | z.infer<typeof PactBreakIntentSchema>;
 
 export type CoalitionIntent =
+  | z.infer<typeof CoalitionRequestIntentSchema>
+  | z.infer<typeof CoalitionRequestReplyIntentSchema>
   | z.infer<typeof CoalitionBanIntentSchema>
   | z.infer<typeof CoalitionCreateIntentSchema>
   | z.infer<typeof CoalitionInviteIntentSchema>
@@ -671,6 +683,8 @@ export const IntentSchema = z.discriminatedUnion("type", [
   PactProposeIntentSchema,
   PactReplyIntentSchema,
   PactBreakIntentSchema,
+  CoalitionRequestIntentSchema,
+  CoalitionRequestReplyIntentSchema,
 ]);
 
 // StampedIntent = Intent with server-stamped clientID (used in turns and execution)

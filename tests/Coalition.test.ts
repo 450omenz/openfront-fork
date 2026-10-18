@@ -284,3 +284,68 @@ describe("Coalitions", () => {
     expect(game.coalitions().enabled()).toBe(false);
   });
 });
+
+describe("Coalition join requests", () => {
+  beforeEach(async () => newGame());
+
+  test("ask to join; the leader accepts", () => {
+    const pact = pactOfAB();
+    act(c, { kind: "request", coalitionID: pact.id() });
+    expect(
+      game
+        .coalitions()
+        .requestsFor(a)
+        .map((r) => r.applicant),
+    ).toEqual([c]);
+    expect(game.coalitions().requestBlocker(c, pact)).toBe("pending");
+    act(a, { kind: "answer", target: c.id(), accept: true });
+    expect(pact.has(c)).toBe(true);
+    expect(game.coalitions().requestsFor(a)).toHaveLength(0);
+  });
+
+  test("a refusal is reported and blocks asking again for a while", () => {
+    const pact = pactOfAB();
+    act(c, { kind: "request", coalitionID: pact.id() });
+    game.addExecution(
+      new CoalitionExecution(a, {
+        kind: "answer",
+        target: c.id(),
+        accept: false,
+      }),
+    );
+    const updates = game.executeNextTick();
+    expect(
+      updates[GameUpdateType.DisplayEvent].some(
+        (m) =>
+          m.message === "events_display.coalition_request_declined" &&
+          m.playerID === c.smallID(),
+      ),
+    ).toBe(true);
+    expect(game.coalitions().requestBlocker(c, pact)).toBe("declined");
+    executeTicks(game, 2 * 60 * 10);
+    expect(game.coalitions().canRequestJoin(c, pact)).toBe(true);
+  });
+
+  test("only the leader answers; members of a coalition can't apply", () => {
+    const pact = pactOfAB();
+    act(c, { kind: "request", coalitionID: pact.id() });
+    act(b, { kind: "answer", target: c.id(), accept: true }); // not leader
+    expect(pact.has(c)).toBe(false);
+    act(d, { kind: "create", name: "Other" });
+    expect(game.coalitions().requestBlocker(d, pact)).toBe("other_coalition");
+  });
+
+  test("an invited player is told to accept the invite instead", () => {
+    const pact = pactOfAB();
+    act(a, { kind: "invite", target: c.id() });
+    expect(game.coalitions().requestBlocker(c, pact)).toBe("invited");
+  });
+
+  test("requests survive a snapshot round trip", async () => {
+    const pact = pactOfAB();
+    act(c, { kind: "request", coalitionID: pact.id() });
+    act(d, { kind: "request", coalitionID: pact.id() });
+    act(a, { kind: "answer", target: d.id(), accept: false });
+    await expectSnapshotRoundTrip(game, "plains", 10);
+  });
+});

@@ -374,6 +374,29 @@ export class GameRunner {
       canCoalitionUnsanction: leads && mine.sanctions().has(other),
       canCoalitionTarget: c.canTarget(player, other),
       canCoalitionTransfer: leads && other !== player && mine.has(other),
+      ...this.joinRequestInteraction(player, other),
+    };
+  }
+
+  // Fork: asking to join `other`'s coalition, or their request to join ours.
+  private joinRequestInteraction(player: Player, other: Player) {
+    const c = this.game.coalitions();
+    const theirs = other === player ? null : c.of(other);
+    const blocker = theirs === null ? null : c.requestBlocker(player, theirs);
+    return {
+      canRequestJoin: theirs !== null && blocker === null,
+      coalitionRequestBlocked:
+        // Nothing to explain when there's nothing to ask, or when we're
+        // simply in a coalition of our own.
+        theirs === null ||
+        blocker === null ||
+        blocker === "member" ||
+        blocker === "other_coalition"
+          ? undefined
+          : blocker,
+      coalitionRequestFromThem: c
+        .requestsFor(player)
+        .some((r) => r.applicant === other),
     };
   }
 

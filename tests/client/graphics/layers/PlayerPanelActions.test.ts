@@ -266,6 +266,17 @@ describe("PlayerPanel - action buttons follow PlayerActions capability flags", (
     expect(renderedLabels()).not.toContain("pact.break");
   });
 
+  test("ask-to-join and accept-request buttons follow the flags (fork)", () => {
+    (panel as any).actions = {
+      interaction: { canRequestJoin: true, coalitionRequestFromThem: true },
+    };
+    const them = { ...other, coalition: () => ({ id: 3, name: "Pact" }) };
+    (panel as any).renderActions(my, them);
+    const labels = renderedLabels();
+    expect(labels).toContain("coalition.request");
+    expect(labels).toContain("coalition.request_accept");
+  });
+
   test("own panel offers founding a coalition when allowed (fork)", () => {
     (panel as any).actions = { canCreateCoalition: true, interaction: {} };
     (panel as any).renderActions(my, my);

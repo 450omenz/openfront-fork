@@ -473,6 +473,69 @@ export class PlayerPanel extends LitElement implements Controller {
       }
     } else if (i !== undefined) {
       const id = other.id();
+      // Asking to join their coalition, or answering their request.
+      const theirCoalition =
+        typeof other.coalition === "function" ? other.coalition() : null;
+      const theirs = theirCoalition?.name ?? "";
+      if (i.canRequestJoin) {
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) =>
+              this.coalitionAction(e, {
+                type: "coalition_request",
+                coalitionID: theirCoalition!.id,
+              }),
+            icon: allianceIcon,
+            iconAlt: "Ask to join",
+            title: translateText("coalition.request_desc", {
+              coalition: theirs,
+            }),
+            label: translateText("coalition.request", { coalition: theirs }),
+            type: "indigo",
+          }),
+        );
+      } else if (i.coalitionRequestBlocked !== undefined) {
+        const why = translateText(
+          `coalition.blocked_request.${i.coalitionRequestBlocked}`,
+        );
+        buttons.push(
+          actionButton({
+            onClick: (e: MouseEvent) => e.stopPropagation(),
+            icon: allianceIcon,
+            iconAlt: "Ask to join",
+            title: why,
+            label: `${translateText("coalition.request", { coalition: theirs })}: ${why}`,
+            type: "normal",
+            disabled: true,
+          }),
+        );
+      }
+      if (i.coalitionRequestFromThem) {
+        const answer = (accept: boolean) => (e: MouseEvent) =>
+          this.coalitionAction(e, {
+            type: "coalition_request_reply",
+            applicant: id,
+            accept,
+          });
+        buttons.push(
+          actionButton({
+            onClick: answer(true),
+            icon: allianceIcon,
+            iconAlt: "Accept request",
+            title: translateText("coalition.request_accept"),
+            label: translateText("coalition.request_accept"),
+            type: "green",
+          }),
+          actionButton({
+            onClick: answer(false),
+            icon: breakAllianceIcon,
+            iconAlt: "Decline request",
+            title: translateText("coalition.decline"),
+            label: translateText("coalition.decline"),
+            type: "red",
+          }),
+        );
+      }
       if (i.canCoalitionInvite) {
         buttons.push(
           actionButton({

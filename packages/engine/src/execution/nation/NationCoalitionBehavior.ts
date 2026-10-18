@@ -50,6 +50,7 @@ export class NationCoalitionBehavior {
     const mine = coalitions.of(this.player);
     if (mine === null) {
       if (this.answerInvites()) return;
+      if (this.maybeApply()) return;
       this.maybeFound();
       return;
     }
@@ -124,6 +125,15 @@ export class NationCoalitionBehavior {
   private lead(c: Coalition): void {
     const coalitions = this.game.coalitions();
     const me = this.player;
+
+    // Answer requests to join, with the same welcome as an invitation.
+    for (const req of [...coalitions.requestsFor(me)]) {
+      coalitions.answerRequest(
+        me,
+        req.applicant,
+        this.welcomes(c, req.applicant),
+      );
+    }
 
     // Invite one candidate per cycle, the best trade partner first.
     if (c.size() === 1) {
@@ -225,6 +235,54 @@ export class NationCoalitionBehavior {
         bans.has(UnitType.MIRV)) &&
       me.units(UnitType.MissileSilo).length > 0;
     return tanks || nukes;
+  }
+
+  /** Would this leader let `applicant` in? */
+  welcomes(c: Coalition, applicant: Player): boolean {
+    const me = this.player;
+    if (me.relation(applicant) < Relation.Neutral) return false;
+    if (applicant.isTraitor() && personalityOf(me).loyalty >= 50) {
+      return false;
+    }
+    return !c.members().some((m) => m.relation(applicant) <= Relation.Hostile);
+  }
+
+  /**
+   * Ask to join a neighbor's, friend's or trade partner's coalition — the
+   * strongest one we'd want — instead of allying its member (fork: see
+   * NationAllianceBehavior.maybeSendAllianceRequests). One per cycle.
+   */
+  private maybeApply(): boolean {
+    const me = this.player;
+    const coalitions = this.game.coalitions();
+    let best: Coalition | null = null;
+    let bestTroops = -1;
+    const seen = new Set<Coalition>();
+    const consider = (o: Player) => {
+      const c = coalitions.of(o);
+      if (c === null || seen.has(c)) return;
+      seen.add(c);
+      if (!coalitions.canRequestJoin(me, c) || !this.wantsToJoin(c, o)) return;
+      const troops = totalTroops(c.members());
+      if (
+        troops > bestTroops ||
+        (troops === bestTroops && best !== null && c.id() < best.id())
+      ) {
+        best = c;
+        bestTroops = troops;
+      }
+    };
+    for (const n of me.nearby()) if (n.isPlayer()) consider(n);
+    for (const o of this.game.players()) {
+      if (o === me) continue;
+      if (
+        me.relation(o) >= Relation.Friendly ||
+        isValuedPartner(this.game, me, o)
+      ) {
+        consider(o);
+      }
+    }
+    return best !== null && coalitions.requestJoin(me, best);
   }
 
   private maybeFound(): void {

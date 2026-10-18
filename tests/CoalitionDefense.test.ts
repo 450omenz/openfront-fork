@@ -20,7 +20,11 @@ import { setup } from "./util/Setup";
 // Fork: a nation in your coalition comes to your aid when you're attacked,
 // on every difficulty — even with free land to grab, below its troop
 // reserve, against a stronger attacker, and when that attacker is human.
-async function scenario(difficulty: Difficulty) {
+async function scenarioWithoutInvite() {
+  return scenario(Difficulty.Hard, false);
+}
+
+async function scenario(difficulty: Difficulty, invite = true) {
   const nation = new Nation(
     new Cell(75, 25),
     new PlayerInfo("N", PlayerType.Nation, null, "N"),
@@ -62,8 +66,10 @@ async function scenario(difficulty: Difficulty) {
     loyalty: 90,
   });
   const c = game.coalitions().create(h, "Pact")!;
-  game.coalitions().invite(h, n);
-  for (let i = 0; i < 150 && !c.has(n); i++) game.executeNextTick();
+  if (invite) {
+    game.coalitions().invite(h, n);
+    for (let i = 0; i < 150 && !c.has(n); i++) game.executeNextTick();
+  }
   return { game, h, e, n, c };
 }
 
@@ -88,4 +94,30 @@ describe("coalition members defend each other", () => {
     },
     120_000,
   );
+});
+
+describe("nations ask to join instead of allying", () => {
+  test("a bordering nation applies to the human's coalition, then defends it", async () => {
+    const { game, h, e, n, c } = await scenarioWithoutInvite();
+    let asked = false;
+    for (let i = 0; i < 400 && !asked; i++) {
+      game.executeNextTick();
+      asked = game
+        .coalitions()
+        .requestsFor(h)
+        .some((r) => r.applicant === n);
+    }
+    expect(asked).toBe(true);
+    expect(n.outgoingAllianceRequests()).toHaveLength(0);
+    // The human leader accepts; the new member then defends them.
+    expect(game.coalitions().answerRequest(h, n, true)).toBe(true);
+    expect(c.has(n)).toBe(true);
+    game.addExecution(new AttackExecution(100_000, e, h.id(), null));
+    let helped = false;
+    for (let i = 0; i < 200 && !helped; i++) {
+      game.executeNextTick();
+      helped = n.outgoingAttacks().some((a) => a.target() === e);
+    }
+    expect(helped).toBe(true);
+  }, 120_000);
 });

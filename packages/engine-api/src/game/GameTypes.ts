@@ -502,6 +502,12 @@ export interface PlayerInteraction {
   canCoalitionTransfer?: boolean;
   /** Why our coalition can't invite this player now (coalition.blocked.*). */
   coalitionInviteBlocked?: string;
+  /** We may ask to join this player's coalition. */
+  canRequestJoin?: boolean;
+  /** Why we can't ask to join their coalition (coalition.blocked_request.*). */
+  coalitionRequestBlocked?: string;
+  /** This player asked to join the coalition we lead. */
+  coalitionRequestFromThem?: boolean;
   // Fork: non-aggression pacts with this player.
   canProposePact?: boolean;
   /** Tick our pact with this player ends, if we have one. */

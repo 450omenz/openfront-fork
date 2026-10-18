@@ -1,4 +1,8 @@
-import { personalityOf, scaled } from "../../game/NationPersonality";
+import {
+  archetypeOf,
+  personalityOf,
+  scaled,
+} from "../../game/NationPersonality";
 import { isValuedPartner } from "./NationTradeBehavior";
 import {
   Difficulty,
@@ -103,7 +107,17 @@ export class NationAllianceBehavior {
         this.game.config().gameConfig().difficulty === Difficulty.Easy) ||
       p.type() !== PlayerType.Bot;
 
+    // Fork: a nation with a personality, in no coalition itself, asks to
+    // join a coalition rather than ally one of its members
+    // (NationCoalitionBehavior.maybeApply).
+    const prefersCoalition = (p: Player) =>
+      archetypeOf(this.player) !== undefined &&
+      this.game.coalitions().enabled() &&
+      this.player.coalition() === null &&
+      p.coalition() !== null;
+
     for (const enemy of borderingEnemies) {
+      if (prefersCoalition(enemy)) continue;
       if (
         this.random.chance(30) &&
         isAcceptablePlayerType(enemy) &&

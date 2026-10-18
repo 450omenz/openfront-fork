@@ -132,6 +132,36 @@ describe("radial Diplomacy menu", () => {
     );
   });
 
+  test("ask to join their coalition", () => {
+    const them = {
+      ...player("p2"),
+      coalition: () => ({ id: 7, name: "Pact" }),
+    };
+    const { p, emitted } = params({ canRequestJoin: true }, them);
+    const item = diplomacyMenuElement.subMenu!(p).find(
+      (i) => i.id === "coalition_request",
+    )!;
+    expect(item.disabled(p)).toBe(false);
+    item.action!(p);
+    expect(emitted[0].intent).toEqual({
+      type: "coalition_request",
+      coalitionID: 7,
+    });
+  });
+
+  test("their request to join ours can be accepted", () => {
+    const { p, emitted } = params({ coalitionRequestFromThem: true });
+    const item = diplomacyMenuElement.subMenu!(p).find(
+      (i) => i.id === "coalition_request_accept",
+    )!;
+    item.action!(p);
+    expect(emitted[0].intent).toEqual({
+      type: "coalition_request_reply",
+      applicant: "p2",
+      accept: true,
+    });
+  });
+
   test("messages send diplomacy quick-chat phrases", () => {
     const { p, emitted } = params({});
     const chat = diplomacyMenuElement.subMenu!(p).find(

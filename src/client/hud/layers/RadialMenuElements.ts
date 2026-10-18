@@ -1062,6 +1062,55 @@ export const diplomacyMenuElement: MenuElement = {
         (q) => !!i(q)?.canCoalitionInvite,
         (q) => ({ type: "coalition_invite", recipient: target(q) }),
       ),
+      // Ask to join their coalition (or say why we can't).
+      {
+        id: "coalition_request",
+        name: "ask to join",
+        icon: allianceIcon,
+        color: (q: MenuElementParams) =>
+          i(q)?.canRequestJoin ? COLORS.ally : COLORS.disabled,
+        displayed: (q) =>
+          !!i(q)?.canRequestJoin || i(q)?.coalitionRequestBlocked !== undefined,
+        disabled: (q) => !i(q)?.canRequestJoin,
+        tooltipItems: tip(
+          translateText("coalition.request", {
+            coalition: p.selected?.coalition?.()?.name ?? "",
+          }),
+          i(p)?.canRequestJoin
+            ? translateText("coalition.request_desc", {
+                coalition: p.selected?.coalition?.()?.name ?? "",
+              })
+            : translateText(
+                `coalition.blocked_request.${i(p)?.coalitionRequestBlocked ?? "pending"}`,
+              ),
+        ),
+        action: (q) => {
+          const c = q.selected?.coalition?.();
+          if (c) {
+            q.eventBus.emit(
+              new SendCoalitionIntentEvent({
+                type: "coalition_request",
+                coalitionID: c.id,
+              }),
+            );
+          }
+          q.closeMenu();
+        },
+      },
+      // They asked to join ours: accept from here.
+      coalitionLeaf(
+        "coalition_request_accept",
+        allianceIcon,
+        COLORS.ally,
+        "coalition.request_accept",
+        "coalition.request_accept_desc",
+        (q) => !!i(q)?.coalitionRequestFromThem,
+        (q) => ({
+          type: "coalition_request_reply",
+          applicant: target(q),
+          accept: true,
+        }),
+      ),
       // Can't invite right now: a disabled item that says why.
       {
         id: "coalition_invite_blocked",

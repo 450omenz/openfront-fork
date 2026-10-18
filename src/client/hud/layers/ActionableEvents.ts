@@ -6,6 +6,7 @@ import {
   BrokeAllianceUpdate,
   GameUpdateType,
   CoalitionInviteUpdate,
+  CoalitionJoinRequestUpdate,
   PactProposalUpdate,
 } from "@openfront/engine-api/game/GameUpdates";
 import { EventBus } from "@openfront/shared/EventBus";
@@ -41,7 +42,7 @@ interface ActionableEvent {
   duration?: Tick;
   requestorID: number;
   /** Fork: coalition invite or pact proposal cards (not alliance ones). */
-  kind?: "coalition" | "pact";
+  kind?: "coalition" | "pact" | "coalition_request";
 }
 
 @customElement("actionable-events")
@@ -69,6 +70,10 @@ export class ActionableEvents extends LitElement implements Controller {
     ],
     [GameUpdateType.CoalitionInvite, this.onCoalitionInviteEvent.bind(this)],
     [GameUpdateType.PactProposal, this.onPactProposalEvent.bind(this)],
+    [
+      GameUpdateType.CoalitionJoinRequest,
+      this.onCoalitionJoinRequestEvent.bind(this),
+    ],
   ] as const;
 
   createRenderRoot() {
@@ -289,7 +294,65 @@ export class ActionableEvents extends LitElement implements Controller {
     if (event.kind === "coalition") {
       return me.coalition() === null && from.coalition() !== null;
     }
+    if (event.kind === "coalition_request") {
+      // Still ours to decide, and they haven't joined anything since.
+      return (
+        from.coalition() === null && me.coalition()?.leaderID === me.smallID()
+      );
+    }
     return me.pactWith(from) === null;
+  }
+
+  // Fork: someone asked to join the coalition we lead.
+  private onCoalitionJoinRequestEvent(update: CoalitionJoinRequestUpdate) {
+    const myPlayer = this.game.myPlayer();
+    if (!myPlayer || update.leaderID !== myPlayer.smallID()) return;
+    const applicant = this.game.playerBySmallID(
+      update.applicantID,
+    ) as PlayerView;
+    const reply = (accept: boolean) =>
+      this.eventBus.emit(
+        new SendCoalitionIntentEvent({
+          type: "coalition_request_reply",
+          applicant: applicant.id(),
+          accept,
+        }),
+      );
+    this.eventBus.emit(new PlaySoundEffectEvent("alliance-suggested"));
+    this.addEvent({
+      description: translateText("coalition.request_card", {
+        name: applicant.displayName(),
+        coalition: update.name,
+      }),
+      buttons: [
+        {
+          text: translateText("events_display.focus"),
+          className: "btn-gray",
+          action: () => this.eventBus.emit(new GoToPlayerEvent(applicant)),
+          preventClose: true,
+        },
+        {
+          text: translateText("coalition.request_accept"),
+          className: "btn",
+          action: () => {
+            this.eventBus.emit(new PlaySoundEffectEvent("alliance-accepted"));
+            reply(true);
+          },
+        },
+        {
+          text: translateText("coalition.decline"),
+          className: "btn-info",
+          action: () => reply(false),
+        },
+      ],
+      type: MessageType.ALLIANCE_REQUEST,
+      createdAt: this.game.ticks(),
+      priority: 0,
+      duration: update.expiresAt - this.game.ticks(),
+      focusID: update.applicantID,
+      requestorID: update.applicantID,
+      kind: "coalition_request",
+    });
   }
 
   // Fork: someone proposed a non-aggression pact.

@@ -121,6 +121,7 @@ export enum GameUpdateType {
   CoalitionInvite,
   Pacts,
   PactProposal,
+  CoalitionJoinRequest,
 }
 
 export type GameUpdate =
@@ -150,7 +151,8 @@ export type GameUpdate =
   | CoalitionsUpdate
   | CoalitionInviteUpdate
   | PactsUpdate
-  | PactProposalUpdate;
+  | PactProposalUpdate
+  | CoalitionJoinRequestUpdate;
 
 export interface BonusEventUpdate {
   type: GameUpdateType.BonusEvent;
@@ -424,6 +426,16 @@ export interface CoalitionView {
   targetUntil: Tick | null;
   /** Weapons members may not build or launch. */
   bannedWeapons: UnitType[];
+}
+
+/** Fork: a player asked to join a coalition; its leader decides. */
+export interface CoalitionJoinRequestUpdate {
+  type: GameUpdateType.CoalitionJoinRequest;
+  coalitionID: number;
+  name: string;
+  applicantID: number;
+  leaderID: number;
+  expiresAt: Tick;
 }
 
 /** Fork: one non-aggression pact. Players are smallIDs. */

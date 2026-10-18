@@ -592,6 +592,14 @@ export interface Coalitions {
   bans(p: Player, weapon: UnitType): boolean;
   reportWeaponUse(user: Player, victim: Player, weapon: UnitType): void;
   removeSilently(p: Player): void;
+  // Join requests: a player asks; the coalition's leader decides.
+  requestsFor(
+    leader: Player,
+  ): readonly { applicant: Player; createdAt: Tick }[];
+  requestBlocker(applicant: Player, c: Coalition): string | null;
+  canRequestJoin(applicant: Player, c: Coalition): boolean;
+  requestJoin(applicant: Player, c: Coalition): boolean;
+  answerRequest(leader: Player, applicant: Player, accept: boolean): boolean;
 }
 
 // Fork: non-aggression pacts (implementation and rules in Pacts.ts).

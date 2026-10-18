@@ -9,6 +9,7 @@ import {
   coalitionName,
   NationCoalitionBehavior,
 } from "@openfront/engine/execution/nation/NationCoalitionBehavior";
+import { NationAllianceBehavior } from "@openfront/engine/execution/nation/NationAllianceBehavior";
 import { NationEmojiBehavior } from "@openfront/engine/execution/nation/NationEmojiBehavior";
 import { AiAttackBehavior } from "@openfront/engine/execution/utils/AiAttackBehavior";
 import { Game, Player } from "@openfront/engine/game/Game";
@@ -198,6 +199,46 @@ describe("NationCoalitionBehavior", () => {
       n2.updateRelation(e, 100);
       behavior(n1).handleCoalitions();
       expect(c.sanctions().has(e)).toBe(false);
+    });
+  });
+
+  describe("join requests", () => {
+    test("asks to join a neighbor's coalition instead of allying it", () => {
+      // h (south-west) leads a coalition; n1 (north-west) borders h.
+      setPersonality(n1, personality({ loyalty: 70 }));
+      const c = game.coalitions().create(h, "Pact")!;
+      behavior(n1).handleCoalitions();
+      expect(
+        game
+          .coalitions()
+          .requestsFor(h)
+          .map((r) => r.applicant),
+      ).toEqual([n1]);
+      // And sends no alliance request to a coalition member.
+      const random = new PseudoRandom(1);
+      const alliance = new NationAllianceBehavior(
+        random,
+        game,
+        n1,
+        new NationEmojiBehavior(random, game, n1),
+      );
+      for (let i = 0; i < 200; i++) alliance.maybeSendAllianceRequests([h]);
+      executeTicks(game, 1);
+      expect(n1.outgoingAllianceRequests()).toHaveLength(0);
+      expect(c.has(n1)).toBe(false); // the human leader decides
+    });
+
+    test("a nation leader lets in welcome applicants, refuses hated ones", () => {
+      befriend(n1, n2);
+      const c = game.coalitions().create(n1, "Pact")!;
+      game.coalitions().invite(n1, n2);
+      game.coalitions().reply(n2, c.id(), true);
+      game.coalitions().requestJoin(h, c);
+      game.coalitions().requestJoin(e, c);
+      n2.updateRelation(e, -100); // a member hates e
+      behavior(n1).handleCoalitions();
+      expect(c.has(h)).toBe(true);
+      expect(c.has(e)).toBe(false);
     });
   });
 

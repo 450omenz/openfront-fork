@@ -192,6 +192,17 @@ export class Executor {
           weapon: intent.unit,
           on: intent.action === "start",
         });
+      case "coalition_request":
+        return new CoalitionExecution(player, {
+          kind: "request",
+          coalitionID: intent.coalitionID,
+        });
+      case "coalition_request_reply":
+        return new CoalitionExecution(player, {
+          kind: "answer",
+          target: intent.applicant,
+          accept: intent.accept,
+        });
       case "pact_propose":
         return new PactExecution(player, {
           kind: "propose",

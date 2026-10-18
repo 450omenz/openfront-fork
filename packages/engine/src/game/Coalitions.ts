@@ -131,6 +131,13 @@ export class CoalitionManager implements Coalitions {
     recipient: Player;
     tick: Tick;
   }[] = [];
+  // Requests to join, answered by the coalition's leader, and refusals.
+  private requests: CoalitionJoinRequest[] = [];
+  private declinedRequests: {
+    coalition: Coalition;
+    applicant: Player;
+    tick: Tick;
+  }[] = [];
   // Derived: each member's coalition (isFriendly asks a lot).
   private index = new Map<Player, CoalitionImpl>();
 
@@ -154,6 +161,138 @@ export class CoalitionManager implements Coalitions {
 
   get(id: number): Coalition | null {
     return this.list.find((c) => c.id() === id) ?? null;
+  }
+
+  /** Live requests to join the coalition `leader` leads. */
+  requestsFor(leader: Player): readonly CoalitionJoinRequest[] {
+    const c = this.ledBy(leader);
+    if (c === null) return [];
+    const now = this.game.ticks();
+    return this.requests.filter(
+      (r) => r.coalition === c && this.liveReq(r, now),
+    );
+  }
+
+  /**
+   * Why `applicant` can't ask to join coalition `c` now, or null if they
+   * can. Keys under coalition.blocked_request.* for the UI.
+   */
+  requestBlocker(applicant: Player, c: Coalition): RequestBlocker | null {
+    const impl = c as CoalitionImpl;
+    if (!this.list.includes(impl)) return "gone";
+    if (impl.has(applicant)) return "member";
+    if (this.implOf(applicant) !== null) return "other_coalition";
+    if (applicant.type() === PlayerType.Bot) return "bot";
+    if (impl._sanctions.has(applicant)) return "sanctioned";
+    if (impl.size() >= this.game.config().coalitionMaxMembers()) return "full";
+    const now = this.game.ticks();
+    if (
+      this.invites.some(
+        (i) =>
+          i.coalition === impl &&
+          i.recipient === applicant &&
+          this.live(i, now),
+      )
+    ) {
+      return "invited";
+    }
+    if (
+      this.requests.some(
+        (r) =>
+          r.coalition === impl &&
+          r.applicant === applicant &&
+          this.liveReq(r, now),
+      )
+    ) {
+      return "pending";
+    }
+    if (
+      this.declinedRequests.some(
+        (d) =>
+          d.coalition === impl &&
+          d.applicant === applicant &&
+          now - d.tick < INVITE_AGAIN_TICKS,
+      )
+    ) {
+      return "declined";
+    }
+    if (!this.eligible(applicant)) return "cooldown";
+    return null;
+  }
+
+  canRequestJoin(applicant: Player, c: Coalition): boolean {
+    return this.requestBlocker(applicant, c) === null;
+  }
+
+  /** `applicant` asks coalition `c` to let them in; its leader decides. */
+  requestJoin(applicant: Player, c: Coalition): boolean {
+    if (!this.canRequestJoin(applicant, c)) return false;
+    const impl = c as CoalitionImpl;
+    const req: CoalitionJoinRequest = {
+      coalition: impl,
+      applicant,
+      createdAt: this.game.ticks(),
+    };
+    this.requests.push(req);
+    this.game.displayMessage(
+      "events_display.coalition_request_sent",
+      MessageType.ALLIANCE_REQUEST,
+      applicant.id(),
+      undefined,
+      { coalition: impl.name() },
+      undefined,
+      impl._leader.id(),
+    );
+    this.game.addUpdate({
+      type: GameUpdateType.CoalitionJoinRequest,
+      coalitionID: impl.id(),
+      name: impl.name(),
+      applicantID: applicant.smallID(),
+      leaderID: impl._leader.smallID(),
+      expiresAt: req.createdAt + this.game.config().coalitionInviteDuration(),
+    });
+    return true;
+  }
+
+  /** The leader answers `applicant`'s request to join. */
+  answerRequest(leader: Player, applicant: Player, accept: boolean): boolean {
+    const c = this.ledBy(leader);
+    if (c === null) return false;
+    const now = this.game.ticks();
+    const req = this.requests.find(
+      (r) =>
+        r.coalition === c && r.applicant === applicant && this.liveReq(r, now),
+    );
+    if (req === undefined) return false;
+    this.requests = this.requests.filter((r) => r !== req);
+    if (!accept) {
+      this.declinedRequests = this.declinedRequests.filter(
+        (d) =>
+          now - d.tick < INVITE_AGAIN_TICKS &&
+          !(d.coalition === c && d.applicant === applicant),
+      );
+      this.declinedRequests.push({ coalition: c, applicant, tick: now });
+      this.game.displayMessage(
+        "events_display.coalition_request_declined",
+        MessageType.ALLIANCE_REJECTED,
+        applicant.id(),
+        undefined,
+        { coalition: c.name() },
+        undefined,
+        leader.id(),
+      );
+      return true;
+    }
+    if (
+      this.implOf(applicant) !== null ||
+      !this.eligible(applicant) ||
+      c._sanctions.has(applicant) ||
+      c.size() >= this.game.config().coalitionMaxMembers()
+    ) {
+      return false;
+    }
+    this.join(c, applicant);
+    return true;
   }
 
   invitesFor(p: Player): readonly CoalitionInvite[] {
@@ -494,6 +633,7 @@ export class CoalitionManager implements Coalitions {
     this.invites = this.invites.filter(
       (i) => i.recipient !== p && i.inviter !== p,
     );
+    this.requests = this.requests.filter((r) => r.applicant !== p);
     if (c === null) return;
     this.remove(c, p);
   }
@@ -523,6 +663,7 @@ export class CoalitionManager implements Coalitions {
     if (c._members.length <= 1) {
       this.list = this.list.filter((x) => x !== c);
       this.invites = this.invites.filter((i) => i.coalition !== c);
+      this.requests = this.requests.filter((q) => q.coalition !== c);
       for (const m of c._members) {
         this.game.displayMessage(
           "events_display.coalition_dissolved",
@@ -590,12 +731,18 @@ export class CoalitionManager implements Coalitions {
     );
   }
 
+  private liveReq(r: CoalitionJoinRequest, now: Tick): boolean {
+    return now - r.createdAt < this.game.config().coalitionInviteDuration();
+  }
+
   private live(i: CoalitionInvite, now: Tick): boolean {
     return now - i.createdAt < this.game.config().coalitionInviteDuration();
   }
 
   private dropInvitesTo(p: Player): void {
     this.invites = this.invites.filter((i) => i.recipient !== p);
+    // Joining anywhere settles their requests too.
+    this.requests = this.requests.filter((r) => r.applicant !== p);
   }
 
   views(): CoalitionView[] {
@@ -662,6 +809,16 @@ export class CoalitionManager implements Coalitions {
         recipient: w.player(d.recipient),
         tick: d.tick,
       })),
+      requests: this.requests.map((r) => ({
+        coalitionID: r.coalition.id(),
+        applicant: w.player(r.applicant),
+        createdAt: r.createdAt,
+      })),
+      declinedRequests: this.declinedRequests.map((d) => ({
+        coalitionID: d.coalition.id(),
+        applicant: w.player(d.applicant),
+        tick: d.tick,
+      })),
     };
   }
 
@@ -702,6 +859,25 @@ export class CoalitionManager implements Coalitions {
           ];
     });
     this.leftAt = new Map(s.leftAt.map((e) => [r.player(e.player), e.tick]));
+    const byID = (id: number) => this.list.find((x) => x.id() === id);
+    this.requests = s.requests.flatMap((q) => {
+      const c = byID(q.coalitionID);
+      return c === undefined
+        ? []
+        : [
+            {
+              coalition: c,
+              applicant: r.player(q.applicant),
+              createdAt: q.createdAt,
+            },
+          ];
+    });
+    this.declinedRequests = s.declinedRequests.flatMap((d) => {
+      const c = byID(d.coalitionID);
+      return c === undefined
+        ? []
+        : [{ coalition: c, applicant: r.player(d.applicant), tick: d.tick }];
+    });
     this.declined = s.declined.flatMap((d) => {
       const c = this.list.find((x) => x.id() === d.coalitionID);
       return c === undefined
@@ -716,6 +892,24 @@ export class CoalitionManager implements Coalitions {
 // After a refusal, a coalition waits 2 minutes before inviting that player
 // again (nation leaders would otherwise re-invite every decision tick).
 const INVITE_AGAIN_TICKS = 2 * 60 * 10;
+
+export interface CoalitionJoinRequest {
+  coalition: Coalition;
+  applicant: Player;
+  createdAt: Tick;
+}
+
+export type RequestBlocker =
+  | "gone"
+  | "member"
+  | "other_coalition"
+  | "bot"
+  | "sanctioned"
+  | "full"
+  | "invited"
+  | "pending"
+  | "declined"
+  | "cooldown";
 
 export type InviteBlocker =
   | "bot"
@@ -742,8 +936,10 @@ function successor(members: Player[]): Player {
 
 export const CoalitionsSnapshot = snapshotType({
   name: "Coalitions",
-  version: 3,
+  version: 4,
   migrations: {
+    // Join requests.
+    3: (d) => ({ ...d, requests: [], declinedRequests: [] }),
     // Declined-invite cooldowns.
     2: (d) => ({ ...d, declined: [] }),
     // Weapon bans.
@@ -783,6 +979,16 @@ export const CoalitionsSnapshot = snapshotType({
     leftAt: z.array(z.object({ player: zPlayerRef(), tick: zInt() })),
     declined: z.array(
       z.object({ coalitionID: zInt(), recipient: zPlayerRef(), tick: zInt() }),
+    ),
+    requests: z.array(
+      z.object({
+        coalitionID: zInt(),
+        applicant: zPlayerRef(),
+        createdAt: zInt(),
+      }),
+    ),
+    declinedRequests: z.array(
+      z.object({ coalitionID: zInt(), applicant: zPlayerRef(), tick: zInt() }),
     ),
   }),
 });

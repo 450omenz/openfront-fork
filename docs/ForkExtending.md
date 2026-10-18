@@ -409,6 +409,18 @@ from the PRNG.
   (`sendDefense`), so the troops a nation keeps back against its
   neighbors don't count the attacker. Before this, a nation never fought
   back against a strong aggressor on Hard and Impossible.
+- **Join requests.** A player outside any coalition can ask to join one
+  (`coalition_request`); the coalition's leader accepts or declines
+  (`coalition_request_reply`). A refusal blocks asking that coalition again
+  for 2 minutes. `requestBlocker` says why a request isn't possible.
+  Nations with a personality that aren't in a coalition ask to join a
+  neighbor's, friend's or trade partner's coalition (the strongest one they
+  would want: `maybeApply`) instead of sending alliance requests to its
+  members. Nation leaders answer requests with the same welcome as their
+  invites.
+- **Indicator.** Your coalition mates get a teal banner status icon above
+  their names (status-atlas cell 12, status row slot 9). The hover panel
+  names any player's coalition and whether they lead it.
 - **Invites.** A declined invite tells the inviter, and that coalition
   can't re-invite the player for 2 minutes. `inviteBlocker` explains in
   the UI why an invite isn't possible right now.
