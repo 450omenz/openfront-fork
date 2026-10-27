@@ -102,8 +102,19 @@ Needs a domain on your Cloudflare account.
 tunnel. `scripts/selfhost-link.sh` only applies to quick tunnels. To go back
 to a quick tunnel, delete `.env` and run `docker compose up -d`.
 
+### Tunnel already running on the host
+
+If cloudflared already runs on the server, start only the game:
+
+```bash
+docker compose up -d --build game
+```
+
+It listens on `http://localhost:8080` (set `GAME_PORT=` in `.env` to change
+it). In the Cloudflare dashboard, point the tunnel's public hostname at
+service type `HTTP`, URL `localhost:8080`.
+
 ### Tailscale Funnel
 
-Free. Uncomment the `ports` entry on the `game`
-  service in `compose.yaml` and run `tailscale funnel 8080` on the host.
+Free. Run `tailscale funnel 8080` on the host.
   The link is `https://<machine>.<tailnet>.ts.net`.

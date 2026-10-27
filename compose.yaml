@@ -32,9 +32,11 @@ services:
       # point browsers at http://localhost:8787 and make Chrome ask
       # visitors for local network access.
       DOMAIN: selfhost.invalid
-    # Uncomment to also open the game at http://localhost:8080 on this machine.
-    # ports:
-    #   - "127.0.0.1:8080:80"
+    # The game on this machine at http://localhost:8080, for a cloudflared (or
+    # other proxy) already running on the host. Change the port with
+    # GAME_PORT in .env.
+    ports:
+      - "127.0.0.1:${GAME_PORT:-8080}:80"
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost/api/health"]
       interval: 10s
