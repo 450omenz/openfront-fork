@@ -1,0 +1,54 @@
+# Self-hosting: the game server plus a Cloudflare quick tunnel that gives it a
+# public HTTPS link. See docs/SelfHosting.md.
+#
+#   docker compose up -d --build
+#   scripts/selfhost-link.sh
+services:
+  game:
+    build:
+      context: .
+      args:
+        # Baked into both the client bundle and the server. Clients whose
+        # commit differs from the server's are turned away, so one build
+        # serves both sides.
+        GIT_COMMIT: ${GIT_COMMIT:-selfhost}
+    # A fixed tag so an image built on another machine and copied over with
+    # `docker load` runs here with `docker compose up -d --no-build`.
+    image: openfront-selfhost:latest
+    # Tunables (worker count etc.). Optional: the defaults work without it.
+    env_file:
+      - path: selfhost.env
+        required: false
+    # Pinned on purpose. They override selfhost.env.
+    environment:
+      # Dev mode lets anonymous players create and join games without the
+      # closed-source OpenFront account API.
+      GAME_ENV: dev
+      # Cloudflare's always-pass test key. Turnstile is skipped in dev, but the
+      # server refuses to render the page without some value.
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      # The client calls the account API at https://api.<DOMAIN>. A name that
+      # can never resolve makes those calls fail fast. "localhost" would
+      # point browsers at http://localhost:8787 and make Chrome ask
+      # visitors for local network access.
+      DOMAIN: selfhost.invalid
+    # Uncomment to also open the game at http://localhost:8080 on this machine.
+    # ports:
+    #   - "127.0.0.1:8080:80"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:2025.4.0
+    # A quick tunnel: no Cloudflare account needed. Its *.trycloudflare.com
+    # link is new every time this container starts.
+    command: tunnel --no-autoupdate --url http://game:80
+    depends_on:
+      game:
+        condition: service_healthy
+    restart: unless-stopped
