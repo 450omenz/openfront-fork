@@ -26,10 +26,6 @@ docker compose up -d --build
 scripts/selfhost-link.sh
 ```
 
-The repo is private, so `git clone` asks for credentials. Either run
-`gh auth login` first, or enter your GitHub username and a personal access
-token as the password.
-
 The first build takes a while. `scripts/selfhost-link.sh` prints a link like
 `https://some-random-words.trycloudflare.com`; send it to your friends. One of
 you creates a private lobby and the others join with its code or link.
