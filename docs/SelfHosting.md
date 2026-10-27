@@ -77,12 +77,33 @@ steps for each update.
 
 ## A link that doesn't change
 
-A quick tunnel can't keep its address. For a permanent link, use one of these:
+A quick tunnel can't keep its address. For a permanent link, use one of these.
 
-- **Named Cloudflare tunnel:** needs a domain on Cloudflare (about $10/year).
-  Create a tunnel in the Cloudflare Zero Trust dashboard and point its public
-  hostname at `http://game:80`. Then change the `tunnel` service's command
-  to `tunnel --no-autoupdate run --token <token>`.
-- **Tailscale Funnel:** free. Uncomment the `ports` entry on the `game`
+### Your own domain (named Cloudflare tunnel)
+
+Needs a domain on your Cloudflare account.
+
+1. In the Cloudflare dashboard, go to **Zero Trust → Networks → Tunnels →
+   Create a tunnel**, choose **Cloudflared**, and name it.
+2. Copy the token from the install command it shows (the long string after
+   `--token`). Skip the install steps; Docker runs cloudflared for you.
+3. Under **Public Hostname**, add a hostname (e.g. `play.example.com`) with
+   service type `HTTP` and URL `game:80`.
+4. Next to `compose.yaml`, create `.env`:
+
+   ```bash
+   COMPOSE_FILE=compose.yaml:compose.cloudflare.yaml
+   TUNNEL_TOKEN=<token>
+   ```
+
+5. `docker compose up -d --build`. The game is at `https://play.example.com`.
+
+`.env` is gitignored. Keep the token secret: anyone holding it can run your
+tunnel. `scripts/selfhost-link.sh` only applies to quick tunnels. To go back
+to a quick tunnel, delete `.env` and run `docker compose up -d`.
+
+### Tailscale Funnel
+
+Free. Uncomment the `ports` entry on the `game`
   service in `compose.yaml` and run `tailscale funnel 8080` on the host.
   The link is `https://<machine>.<tailnet>.ts.net`.

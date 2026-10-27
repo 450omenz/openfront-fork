@@ -18,3 +18,4 @@ scripts/replay/
 scripts/split-packages/
 compose.yaml
 selfhost.env*
+compose.*.yaml

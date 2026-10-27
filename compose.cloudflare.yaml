@@ -1,0 +1,14 @@
+# Runs the tunnel as your own named Cloudflare tunnel, on your domain, in
+# place of the quick tunnel. See "Your own domain" in docs/SelfHosting.md.
+#
+# Enable it with a .env file next to compose.yaml:
+#
+#   COMPOSE_FILE=compose.yaml:compose.cloudflare.yaml
+#   TUNNEL_TOKEN=<token from the Cloudflare dashboard>
+services:
+  tunnel:
+    # cloudflared reads the tunnel to run from TUNNEL_TOKEN. Where traffic
+    # goes (http://game:80) is set on the tunnel in the dashboard.
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env (see docs/SelfHosting.md)}
