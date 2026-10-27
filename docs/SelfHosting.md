@@ -12,7 +12,10 @@ account API.
 
 ## Requirements
 
-- Docker with the compose plugin (`docker compose version` should print a version).
+- Docker with the compose and buildx plugins (`docker compose version` and
+  `docker buildx version` should both print a version). Without buildx the
+  build stops at `the --mount option requires BuildKit`. Install it with
+  `sudo pacman -S docker-buildx` (Arch) or `sudo apt install docker-buildx-plugin` (Debian/Ubuntu).
 - About 4 GB of free RAM to build the image. If the host has less, build on
   another machine instead (see [Low-RAM hosts](#low-ram-hosts)).
 - About 5 GB of free disk space.
